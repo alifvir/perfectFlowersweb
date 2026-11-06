@@ -1,0 +1,16 @@
+# Hasil build, dibuat ulang oleh build.py (Cloudflare membangunnya sendiri)
+dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Alat
+.wrangler/
+node_modules/
+.tmp/
+
+# OS
+Thumbs.db
+.DS_Store
