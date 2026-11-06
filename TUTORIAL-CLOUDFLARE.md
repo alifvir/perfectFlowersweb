@@ -60,6 +60,45 @@ lalu tambahkan domain lewat dashboard: **Workers & Pages** > pilih proyek > **Cu
 
 ---
 
+## Route C: GitHub + deploy otomatis
+
+Urutannya wajib begini: **repo GitHub dulu, proyek Pages belakangan.** Proyek Pages yang dibuat lewat upload atau `wrangler pages deploy` adalah proyek Direct Upload, dan Direct Upload tidak bisa dihubungkan ke GitHub selamanya. Kalau telanjur, harus buat proyek Pages baru.
+
+1. Repo lokal disiapkan di `D:\Alif\Project\perfect-flowers-web` (sudah di-`git init`, commit pertama sudah ada, `dist/` diabaikan karena Cloudflare yang membangun).
+2. Buat repo kosong di https://github.com/new. Nama `perfect-flowers-web`, pilih **Private**, dan **jangan** centang "Add a README file" supaya tidak perlu merge.
+3. Hubungkan dan dorong:
+
+```bash
+cd /d/Alif/Project/perfect-flowers-web
+git remote add origin https://github.com/<username>/perfect-flowers-web.git
+git push -u origin main
+```
+
+4. Cloudflare: **Workers & Pages** > **Create** > tab **Pages** > **Connect to Git** > pilih GitHub > izinkan akses > pilih repo > **Begin setup**.
+5. Isi setelan build persis seperti ini:
+
+| Kolom | Nilai |
+|---|---|
+| Project name | `perfect-flowers` |
+| Production branch | `main` |
+| Framework preset | None |
+| Build command | `pip install -r requirements.txt && python build.py` |
+| Build output directory | `dist` |
+| Root directory | (kosongkan) |
+| Environment variables | tidak perlu |
+
+Build image Cloudflare versi 3 sudah menyediakan Python 3.13 dan pip, jadi Pillow terpasang saat build.
+
+6. **Save and Deploy**. Tunggu log build selesai (biasanya di bawah satu menit), lalu buka `https://perfect-flowers.pages.dev`.
+7. Update seterusnya cukup `git push`. Cloudflare membangun ulang sendiri, dan tiap push ke branch lain menghasilkan preview deployment dengan alamat sendiri.
+8. Untuk proyek yang sudah terhubung Git, deploy manual masih bisa dengan `npx wrangler@latest pages deploy dist --project-name perfect-flowers`, tapi jalur normalnya adalah push.
+
+### Kalau build di Cloudflare gagal
+
+Paling sering karena Pillow tidak bisa dipasang dari PyPI saat build. Jalan keluar darurat: hapus baris `dist/` dari `.gitignore`, commit folder `dist` yang sudah jadi, lalu ubah build command menjadi `exit 0` (build directory tetap `dist`). Dengan begitu Cloudflare hanya menyajikan berkas yang sudah dibangun di laptop.
+
+---
+
 ## Memperbarui situs setelah ada perubahan
 
 1. Ubah isi situs (misalnya harga, nomor WA, foto), lalu:
