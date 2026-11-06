@@ -4,7 +4,7 @@ Pilih satu route. Route A paling cepat dan tanpa terminal. Route B dipakai kalau
 
 Situs ini statis murni: yang diunggah hanya isi folder `dist/`. Tidak ada build step di Cloudflare, tidak ada environment variable, tidak ada database.
 
-Yang akan didapat: alamat `https://<nama-proyek>.pages.dev` yang bisa dibuka dari mana saja, gratis.
+Yang akan didapat: alamat `https://<nama-proyek>.pages.dev` yang bisa dibuka dari mana saja, gratis. Untuk proyek ini hasilnya https://perfectflowersweb.pages.dev
 
 ---
 
@@ -65,7 +65,7 @@ lalu tambahkan domain lewat dashboard: **Workers & Pages** > pilih proyek > **Cu
 Urutannya wajib begini: **repo GitHub dulu, proyek Pages belakangan.** Proyek Pages yang dibuat lewat upload atau `wrangler pages deploy` adalah proyek Direct Upload, dan Direct Upload tidak bisa dihubungkan ke GitHub selamanya. Kalau telanjur, harus buat proyek Pages baru.
 
 1. Repo lokal disiapkan di `D:\Alif\Project\perfect-flowers-web` (sudah di-`git init`, commit pertama sudah ada, `dist/` diabaikan karena Cloudflare yang membangun).
-2. Buat repo kosong di https://github.com/new. Nama `perfect-flowers-web`, pilih **Private**, dan **jangan** centang "Add a README file" supaya tidak perlu merge.
+2. Buat repo kosong di https://github.com/new. Nama `perfectFlowersweb`, pilih **Private**, dan **jangan** centang "Add a README file" supaya tidak perlu merge.
 3. Hubungkan dan dorong:
 
 ```bash
@@ -79,7 +79,7 @@ git push -u origin main
 
 | Kolom | Nilai |
 |---|---|
-| Project name | `perfect-flowers` |
+| Project name | `perfectflowersweb` |
 | Production branch | `main` |
 | Framework preset | None |
 | Build command | `pip install -r requirements.txt && python build.py` |
@@ -89,7 +89,7 @@ git push -u origin main
 
 Build image Cloudflare versi 3 sudah menyediakan Python 3.13 dan pip, jadi Pillow terpasang saat build.
 
-6. **Save and Deploy**. Tunggu log build selesai (biasanya di bawah satu menit), lalu buka `https://perfect-flowers.pages.dev`.
+6. **Save and Deploy**. Tunggu log build selesai (biasanya di bawah satu menit), lalu buka `https://perfectflowersweb.pages.dev`.
 7. Update seterusnya cukup `git push`. Cloudflare membangun ulang sendiri, dan tiap push ke branch lain menghasilkan preview deployment dengan alamat sendiri.
 8. Untuk proyek yang sudah terhubung Git, deploy manual masih bisa dengan `npx wrangler@latest pages deploy dist --project-name perfect-flowers`, tapi jalur normalnya adalah push.
 

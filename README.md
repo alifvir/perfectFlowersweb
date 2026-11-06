@@ -2,6 +2,9 @@
 
 Situs profil dan katalog untuk Perfect Flowers (Tangerang), dibuat statis supaya bisa di-host gratis di Cloudflare Pages.
 
+Situs live: https://perfectflowersweb.pages.dev (Cloudflare Pages, build otomatis dari repo GitHub setiap push ke `main`).
+Git remote: `git@github.com:alifvir/perfectFlowersweb.git`
+
 ## Isi
 
 | Path | Fungsi |

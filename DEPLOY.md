@@ -24,6 +24,21 @@ Setelah punya domain, isi kolom `url` di `data/site.json`, contoh `"https://perf
 
 ## 3. Deploy ke Cloudflare Pages
 
+Cara yang dipakai sekarang: proyek Pages terhubung ke repo GitHub `alifvir/perfectFlowersweb`, jadi setiap `git push` ke `main` memicu build dan deploy otomatis.
+
+- Alamat produksi: https://perfectflowersweb.pages.dev
+- Project name Cloudflare: `perfectflowersweb`
+- Build command: `pip install -r requirements.txt && python build.py`
+- Build output directory: `dist`
+
+Deploy manual (jarang perlu):
+
+```bash
+git add -A && git commit -m "..." && git push
+```
+
+### Cara lain, tanpa Git (kalau proyek Pages dibuat dengan Direct Upload)
+
 Cara tercepat, tanpa CLI:
 
 1. Buka Cloudflare Dashboard, menu Workers and Pages, lalu Create, tab Pages, pilih Upload assets.
