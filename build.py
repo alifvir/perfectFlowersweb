@@ -10,12 +10,15 @@ Hasil: dist/ siap diunggah ke Cloudflare Pages.
 Jalankan: python build.py
 """
 
+import hashlib
 import json
 import os
+import re
 import shutil
 from html import escape
 
-from PIL import Image
+import numpy as np
+from PIL import Image, ImageOps
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "assets-src")
@@ -32,13 +35,63 @@ GRIDS = {
     "g6": (3, 3, [215000, 150000, 230000, 100000, 170000, 215000, 235000, 60000, 150000]),
 }
 
-# Tinggi potongan per grid. Label harga di pricelist letaknya beda-beda,
-# jadi sel dengan label lebih tinggi dipotong lebih dalam agar label tidak ikut.
-POTONG = {"g1": 0.76, "g2": 0.76, "g3": 0.76, "g4": 0.64, "g5": 0.76, "g6": 0.72}
+# Bingkai potong seragam untuk semua foto produk: 4:5, ukuran buket disamakan,
+# dasar potongan tepat di atas kotak label harga. Dulu tiap grid punya tinggi
+# potong sendiri (POTONG), hasilnya posisi buket naik-turun tidak seragam.
+RASIO_POTONG = 0.80    # lebar : tinggi
+
+# Sel yang label harganya tidak terdeteksi otomatis (label hitam besar).
+# Nilai = rasio tinggi sel tempat potongan harus berhenti.
+BATAS_SEL = {"g4-5": 0.72, "g4-6": 0.72}
+
+# Lembar katalog foto: semua kotak dibuat rasio sama (lebar:tinggi = 0.66)
+# supaya grid 2 kolom tidak menyisakan ruang kosong di bawah lembar terpendek.
+LEBAR_LEMBAR = 1080
+RASIO_LEMBAR = 0.66
+
+# Harga yang diturunkan dari situs (foto contohnya salah / belum layak tayang).
+SEMBUNYI = {65000}
 
 PILIHAN_BERANDA = [35000, 50000, 65000, 110000, 150000, 170000, 235000, 350000]
 
+# Lembar katalog foto (catalog/). Tiap lembar adalah kolase buket dengan label
+# harga yang sudah menempel di fotonya. Dipakai sebagai halaman tambahan
+# /katalog/foto/, bukan untuk memotong ulang foto produk yang sudah ada.
+LEMBAR = [
+    {"berkas": "catalog.jpeg", "kolom": 2, "baris": 3,
+     "harga": [255000, 225000, 200000, 195000, 235000, 550000]},
+    {"berkas": "catalog (2).jpeg", "kolom": 3, "baris": 3,
+     "harga": [65000, 350000, 160000, 235000, 235000, 35000, 235000, 50000, 130000]},
+    {"berkas": "catalog (3).jpeg", "kolom": 3, "baris": 3,
+     "harga": [130000, 275000, 60000, 235000, 150000, 250000, 170000, 700000, 150000]},
+    {"berkas": "catalog (4).jpeg", "kolom": 3, "baris": 3,
+     "harga": [110000, 250000, 160000, 150000, 215000, 130000, 65000, 235000, 215000]},
+    {"berkas": "catalog (5).jpeg", "kolom": 3, "baris": 3,
+     "harga": [215000, 150000, 250000, 100000, 170000, 215000, 235000, 60000, 150000]},
+    {"berkas": "catalog (6).jpeg", "kolom": 2, "baris": 3,
+     "harga": [350000, 300000, 200000, 215000, 300000, 175000]},
+    {"berkas": "catalog (7).jpeg", "kolom": 2, "baris": 3,
+     "harga": [315000, 320000, 875000, 400000, 255000, 215000]},
+    {"berkas": "catalog (8).jpeg", "kolom": 3, "baris": 3,
+     "harga": [70000, 250000, 35000, 40000, 70000, 35000, 35000, 50000, 60000]},
+]
+KATALOG = os.path.join(ROOT, "catalog")
+
+# Foto satuan: foto buket per harga, nama berkasnya = harga ('175k (2).jpeg').
+# Tidak ada label harga di dalam foto, jadi dipotong apa adanya ke 4:5.
+SATUAN = os.path.join(KATALOG, "satuan")
+
 SITE = json.load(open(os.path.join(ROOT, "data", "site.json"), encoding="utf-8"))
+
+_versi = {}
+
+
+def versi_aset(relatif):
+    """Potongan hash isi berkas, dipakai sebagai ?v= supaya CSS/JS tidak tersangkut cache lama."""
+    if relatif not in _versi:
+        with open(os.path.join(ROOT, relatif), "rb") as f:
+            _versi[relatif] = hashlib.sha1(f.read()).hexdigest()[:8]
+    return _versi[relatif]
 
 
 def rupiah(n):
@@ -58,33 +111,224 @@ def tulis(path, isi):
 
 # ---------------------------------------------------------------- gambar
 
+def _jumlah_kotak(a, r):
+    """Jumlah nilai pada jendela (2r+1) persegi untuk tiap piksel, lewat integral image."""
+    h, w = a.shape
+    p = np.pad(a, r, mode="edge")
+    ii = np.zeros((p.shape[0] + 1, p.shape[1] + 1), dtype=np.float64)
+    ii[1:, 1:] = np.cumsum(np.cumsum(p, axis=0), axis=1)
+    k = 2 * r + 1
+    y0 = np.arange(h)[:, None]
+    x0 = np.arange(w)[None, :]
+    return ii[y0 + k, x0 + k] - ii[y0, x0 + k] - ii[y0 + k, x0] + ii[y0, x0]
+
+
+def _kanal(cell):
+    a = np.asarray(cell.convert("RGB")).astype(np.float32)
+    gray = a[:, :, 0] * 0.299 + a[:, :, 1] * 0.587 + a[:, :, 2] * 0.114
+    r = 4
+    n = (2 * r + 1) ** 2
+    rata = _jumlah_kotak(gray, r) / n
+    std = np.sqrt(np.maximum(_jumlah_kotak(gray * gray, r) / n - rata * rata, 0))
+    return a, gray, std
+
+
+def _deteksi_label(cell, skala=5):
+    """Cari kotak label harga di bagian bawah sel.
+
+    Sel diperkecil dulu (rata-rata blok) supaya angka di dalam label tidak
+    memotong-motong area putih/hitamnya. Kembalikan rasio y (0..1) atau None.
+    """
+    h, w = cell.height, cell.width
+    mulai = int(h * 0.45)
+    kecil = np.asarray(
+        cell.crop((0, mulai, w, h)).resize((max(8, w // skala), max(8, (h - mulai) // skala)), Image.BOX)
+    ).astype(np.int16)
+    mn = kecil.min(axis=2)
+    mx = kecil.max(axis=2)
+    cw, ch = mn.shape[1], mn.shape[0]
+    calon = []
+    for mask, ambang in ((mn > 200, 0.12), (mx < 85, 0.10)):
+        baris = []
+        for y in range(ch):
+            run = terbaik = 0
+            for v in mask[y]:
+                run = run + 1 if v else 0
+                if run > terbaik:
+                    terbaik = run
+            if ambang * cw <= terbaik <= 0.55 * cw:
+                baris.append(y)
+        if not baris:
+            continue
+        kelompok, awal = [], baris[0]
+        for a, b in zip(baris, baris[1:]):
+            if b - a > 1:
+                kelompok.append((awal, a))
+                awal = b
+        kelompok.append((awal, baris[-1]))
+        for atas, bawah in kelompok:
+            y0 = mulai + atas * skala
+            y1 = mulai + (bawah + 1) * skala
+            tinggi = (y1 - y0) / h
+            if not (0.03 <= tinggi <= 0.17) or y1 / h < 0.84:
+                continue
+            blok = mask[atas:bawah + 1]
+            kolom = np.where(blok.any(axis=0))[0]
+            if len(kolom) == 0:
+                continue
+            lebar = kolom.max() - kolom.min() + 1
+            if not (0.15 <= lebar / cw <= 0.50):
+                continue
+            if not (1.3 <= lebar / max(1, bawah - atas + 1) <= 6):
+                continue
+            calon.append(y0 / h)
+    return min(calon) if calon else None
+
+
+def _kotak_buket(gray, std, batas):
+    """Perkiraan kotak buket: baris/kolom yang isinya penuh detail."""
+    h, w = gray.shape
+    x0, x1 = int(w * 0.08), int(w * 0.92)
+    ramai = std > 11
+    fraksi_baris = ramai[:, x0:x1].mean(axis=1)
+    baris = [y for y in range(0, batas) if fraksi_baris[y] > 0.33]
+    if baris:
+        atas_b, bawah_b = min(baris), max(baris)
+    else:
+        atas_b, bawah_b = int(h * 0.12), batas - 1
+    fraksi_kolom = ramai[atas_b:bawah_b + 1, :].mean(axis=0)
+    kolom = [x for x in range(w) if fraksi_kolom[x] > 0.22]
+    kiri_b, kanan_b = (min(kolom), max(kolom)) if kolom else (0, w - 1)
+    kanan_b = max(kanan_b, kiri_b + 8)
+    bawah_b = max(bawah_b, atas_b + 8)
+    return atas_b, bawah_b, kiri_b, kanan_b
+
+
+def _potong_sekitar(gray, kotak, batas, h, w):
+    """Kotak 4:5 yang memuat buket + ruang kosong, dipusatkan ke buketnya."""
+    atas_b, bawah_b, kiri_b, kanan_b = kotak
+    tepi = 0.10  # ruang kosong di sekeliling buket, relatif ukuran buket
+    tinggi_butuh = max((bawah_b - atas_b + 1) * (1 + 2 * tepi),
+                       (kanan_b - kiri_b + 1) * (1 + 2 * tepi) / RASIO_POTONG)
+    tinggi = int(round(min(max(tinggi_butuh, batas * 0.55), batas)))
+    lebar = min(int(round(tinggi * RASIO_POTONG)), w)
+    tinggi = int(round(lebar / RASIO_POTONG))
+
+    pusat_y = (atas_b + bawah_b) / 2
+    atas = int(round(pusat_y - tinggi / 2))
+    atas = max(0, min(atas, batas - tinggi))
+    pusat_x = (kiri_b + kanan_b) / 2
+    kiri = int(round(pusat_x - lebar / 2))
+    kiri = max(0, min(kiri, w - lebar))
+    return kiri, atas, lebar, tinggi
+
+
+def _bingkai(cell, batas_rasio):
+    """Kotak potong 4:5 dari sel pricelist: dasar potongan di batas_rasio (atas label)."""
+    a, gray, std = _kanal(cell)
+    h, w = gray.shape
+    batas = int(round(h * batas_rasio))
+    batas = min(max(batas, int(h * 0.5)), h - 1)
+    return _potong_sekitar(gray, _kotak_buket(gray, std, batas), batas, h, w)
+
+
+def _bingkai_foto(im):
+    """Kotak potong 4:5 untuk foto satuan (tanpa label harga di dalamnya)."""
+    a, gray, std = _kanal(im)
+    h, w = gray.shape
+    return _potong_sekitar(gray, _kotak_buket(gray, std, h), h, h, w)
+
+
+def harga_dari_nama(nama):
+    """'175k (2).jpeg' -> 175000. Nama berkas di catalog/satuan/ memakai harga."""
+    cocok = re.match(r"^\s*(\d+)\s*k", nama, re.IGNORECASE)
+    return int(cocok.group(1)) * 1000 if cocok else None
+
+
 def siapkan_gambar():
     """Potong tiap sel pricelist jadi foto produk, buang label harga di bawah."""
     if os.path.isdir(IMG):
         shutil.rmtree(IMG)
     os.makedirs(IMG, exist_ok=True)
 
-    foto = []
+    # tahap 1: ambil sel + deteksi posisi label tiap sel
+    sel_grid = []
     for nama, (cols, rows, harga) in GRIDS.items():
-        sumber = os.path.join(SRC, nama + ".jpeg")
-        im = Image.open(sumber).convert("RGB")
+        im = Image.open(os.path.join(SRC, nama + ".jpeg")).convert("RGB")
         W, H = im.size
         cw, ch = W / cols, H / rows
         for indeks, harga_sel in enumerate(harga):
             r, c = divmod(indeks, cols)
-            potong = POTONG.get(nama, 0.76)
-            kotak = (int(c * cw), int(r * ch), int((c + 1) * cw), int(r * ch + ch * potong))
-            sel = im.crop(kotak)
-            lebar = min(640, sel.width * 2)
-            sel = sel.resize((lebar, round(sel.height * lebar / sel.width)), Image.LANCZOS)
-            berkas = "%s-%d.webp" % (nama, indeks + 1)
-            sel.save(os.path.join(IMG, berkas), "WEBP", quality=82, method=6)
+            cell = im.crop((int(c * cw), int(r * ch), int((c + 1) * cw), int(r * ch + ch)))
+            sel_grid.append({"nama": nama, "kode": "%s-%d" % (nama, indeks + 1),
+                             "baris": r, "indeks": indeks, "cell": cell,
+                             "harga": harga_sel, "label": _deteksi_label(cell)})
+
+    # tahap 2: satu nilai per baris grid, diambil dari deteksi paling atas.
+    # Label harga dalam satu baris letaknya sejajar, jadi nilai baris lebih
+    # tahan terhadap sel yang deteksinya meleset.
+    batas_baris = {}
+    for nama, (cols, rows, harga) in GRIDS.items():
+        for r in range(rows):
+            nilai = [s["label"] for s in sel_grid
+                     if s["nama"] == nama and s["baris"] == r and s["label"]]
+            if nilai:
+                batas_baris[(nama, r)] = min(0.88, max(0.78, min(nilai)))
+            else:
+                batas_baris[(nama, r)] = 0.82
+    for kode, nilai in BATAS_SEL.items():
+        nama, nomor = kode.split("-")
+        batas_baris[(nama, (int(nomor) - 1) // GRIDS[nama][0])] = nilai
+
+    # tahap 3: potong dan simpan
+    foto = []
+    for s in sel_grid:
+        # 0.03 = cadangan aman: deteksi kadang jatuh di bagian bawah kotak label
+        batas = batas_baris[(s["nama"], s["baris"])] - 0.03
+        kiri, atas, lebar, tinggi = _bingkai(s["cell"], batas)
+        sel = s["cell"].crop((kiri, atas, kiri + lebar, atas + tinggi))
+        lebar_out = min(640, round(sel.width * 2))
+        sel = sel.resize((lebar_out, round(sel.height * lebar_out / sel.width)), Image.LANCZOS)
+        if s["harga"] in SEMBUNYI:
+            continue
+        sel.save(os.path.join(IMG, s["kode"] + ".webp"), "WEBP", quality=82, method=6)
+        foto.append({
+            "berkas": "assets/img/%s.webp" % s["kode"],
+            "harga": s["harga"],
+            "alt": "Contoh buket %s buatan Perfect Flowers" % rupiah(s["harga"]),
+            "w": sel.width,
+            "h": sel.height,
+            "utama": 1,
+        })
+
+    # foto satuan (catalog/satuan/): foto buket asli per harga, dipakai sebagai
+    # foto utama untuk harga tsb. Harga yang belum ada di pricelist otomatis
+    # dapat halaman sendiri. Harga di SEMBUNYI tetap boleh tampil di sini,
+    # karena yang diturunkan cuma potongan pricelist-nya.
+    if os.path.isdir(SATUAN):
+        satuan = []
+        for berkas in sorted(os.listdir(SATUAN)):
+            harga_sel = harga_dari_nama(berkas)
+            if not harga_sel or not berkas.lower().endswith((".jpeg", ".jpg", ".png", ".webp")):
+                continue
+            satuan.append((harga_sel, berkas))
+        urut_harga = {}
+        for harga_sel, berkas in satuan:
+            urut_harga[harga_sel] = urut_harga.get(harga_sel, 0) + 1
+            im = Image.open(os.path.join(SATUAN, berkas)).convert("RGB")
+            kiri, atas, lebar, tinggi = _bingkai_foto(im)
+            sel = im.crop((kiri, atas, kiri + lebar, atas + tinggi))
+            lebar_out = min(640, round(sel.width * 2))
+            sel = sel.resize((lebar_out, round(sel.height * lebar_out / sel.width)), Image.LANCZOS)
+            kode = "s-%dk-%d" % (harga_sel // 1000, urut_harga[harga_sel])
+            sel.save(os.path.join(IMG, kode + ".webp"), "WEBP", quality=84, method=6)
             foto.append({
-                "berkas": "assets/img/" + berkas,
+                "berkas": "assets/img/%s.webp" % kode,
                 "harga": harga_sel,
                 "alt": "Contoh buket %s buatan Perfect Flowers" % rupiah(harga_sel),
                 "w": sel.width,
                 "h": sel.height,
+                "utama": 0,
             })
 
     # hero: foto buket asli (portrait). Bidang potong dipilih agar bagian atas
@@ -106,7 +350,41 @@ def siapkan_gambar():
         im2.thumbnail(ukuran, Image.LANCZOS)
         im2.save(os.path.join(IMG, keluar), "WEBP", quality=84, method=6)
 
-    return foto
+    # lembar katalog foto. Label harga sudah menempel di dalam foto, jadi lembar
+    # tidak dipotong: tiap lembar diberi bingkai warna latarnya sendiri sampai
+    # rasio seragam, supaya semua kotak di grid tingginya sama dan tidak ada
+    # ruang kosong di bawah lembar yang lebih pendek.
+    lembar = []
+    for s in LEMBAR:
+        im3 = Image.open(os.path.join(KATALOG, s["berkas"])).convert("RGB")
+        if im3.width > 1080:
+            im3 = im3.resize((1080, round(im3.height * 1080 / im3.width)), Image.LANCZOS)
+        asal = im3.height / im3.width
+        # bingkai warna kertas situs (sama dengan latar .lembar__tautan), bukan
+        # warna sudut foto: hasilnya seragam dan tidak terlihat seperti sambungan
+        im3 = ImageOps.pad(
+            im3, (LEBAR_LEMBAR, round(LEBAR_LEMBAR / RASIO_LEMBAR)),
+            color=(255, 250, 244), centering=(0.5, 0.5), method=Image.Resampling.LANCZOS,
+        )
+        lembar.append({"img": im3, "harga": s["harga"], "asal": asal})
+    # urutan tetap seperti sebelumnya (rasio asli), supaya nomor lembar tidak berubah
+    lembar.sort(key=lambda l: -l["asal"])
+
+    hasil = []
+    for indeks, l in enumerate(lembar, 1):
+        im3 = l["img"]
+        berkas = "katalog-%02d.webp" % indeks
+        im3.save(os.path.join(IMG, berkas), "WEBP", quality=82, method=6)
+        hasil.append({
+            "berkas": "assets/img/" + berkas,
+            "w": im3.width,
+            "h": im3.height,
+            "jumlah": len(l["harga"]),
+            "min": min(l["harga"]),
+            "max": max(l["harga"]),
+        })
+
+    return foto, hasil
 
 
 # ---------------------------------------------------------------- komponen
@@ -187,7 +465,7 @@ def kepala(judul, deskripsi, aktif, kanonikal=""):
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v={versi_aset('assets/css/style.css')}">
 </head>
 <body>
 <a class="skip" href="#utama">Lewati ke isi utama</a>
@@ -236,6 +514,7 @@ def kaki():
         <h2>Halaman</h2>
         <ul>
           <li><a href="/katalog/">Katalog buket</a></li>
+          <li><a href="/katalog/foto/">Katalog foto</a></li>
           <li><a href="/#cara-order">Cara order</a></li>
           <li><a href="/tentang/">Tentang</a></li>
           <li><a href="/kontak/">Kontak dan pembayaran</a></li>
@@ -258,7 +537,7 @@ def kaki():
   </div>
 </footer>
 {tombol_wa_melayang()}
-<script src="/assets/js/site.js" defer></script>
+<script src="/assets/js/site.js?v={versi_aset('assets/js/site.js')}" defer></script>
 </body>
 </html>
 """
@@ -273,6 +552,9 @@ def kartu_produk(foto, harga, kelas_extra=""):
       <p class="kartu__harga">{rupiah(harga)}</p>
     </div>
   </a>
+  <button class="tombol-zoom" type="button" data-zoom data-foto="/{foto['berkas']}" data-alt="{escape(foto['alt'])}" aria-label="Lihat foto Buket {harga // 1000}K ukuran penuh">
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7.2"/><path d="M20.2 20.2 16 16M11 8.4v5.2M8.4 11h5.2"/></svg>
+  </button>
 </article>"""
 
 
@@ -411,7 +693,7 @@ def halaman_beranda(tier):
 """ + kaki()
 
 
-def halaman_katalog(tier):
+def halaman_katalog(tier, lembar):
     daftar = "".join(kartu_produk(tier[h]["foto"][0], h) for h in sorted(tier))
     return kepala(
         "Katalog buket bunga, Perfect Flowers",
@@ -437,6 +719,72 @@ def halaman_katalog(tier):
     </div>
     <p class="saring__hitung" data-hitung aria-live="polite"></p>
     <div class="produk-grid" data-daftar-produk>{daftar}</div>
+    <p style="margin-top:1.8rem"><a class="tautan" href="/katalog/foto/">Lihat {len(lembar)} lembar katalog foto</a></p>
+  </div>
+</section>
+""" + kaki()
+
+
+def chip_harga(harga):
+    """Tautan kecil untuk harga yang belum punya halaman sendiri."""
+    pesan = "Halo Perfect Flowers, saya mau pesan buket %s. Boleh info ketersediaan bunga hari ini?" % rupiah(harga)
+    tautan = wa_tautan(pesan)
+    if tautan:
+        return ('<li><a href="%s" target="_blank" rel="noopener"><b>%s</b><span>Tanya stok</span></a></li>'
+                % (escape(tautan), rupiah(harga)))
+    return '<li><a href="/kontak/"><b>%s</b><span>Cara pesan</span></a></li>' % rupiah(harga)
+
+
+def lembar_foto(lembar):
+    blok = []
+    for nomor, l in enumerate(lembar, 1):
+        alt = "Katalog foto lembar %d: %d buket dengan harga %s sampai %s" % (
+            nomor, l["jumlah"], rupiah(l["min"]), rupiah(l["max"]))
+        blok.append(f"""<figure class="lembar">
+  <a class="lembar__tautan" href="/{l['berkas']}" target="_blank" rel="noopener">
+    <img src="/{l['berkas']}" alt="{escape(alt)}" width="{l['w']}" height="{l['h']}" loading="lazy" decoding="async">
+  </a>
+  <figcaption><strong>Lembar {nomor}</strong><span>{l['jumlah']} buket</span><span>{rupiah(l['min'])} sampai {rupiah(l['max'])}</span></figcaption>
+</figure>""")
+    return "".join(blok)
+
+
+def halaman_katalog_foto(lembar, tier):
+    semua = sorted({h for s in LEMBAR for h in s["harga"]})
+    baru = [h for h in semua if h not in tier and h not in SEMBUNYI]
+    blok_baru = ""
+    if baru:
+        blok_baru = f"""
+<section class="tambahan">
+  <div class="wrap">
+    <p class="label" data-nomor="02">Harga di lembar katalog</p>
+    <h2 style="font-size:clamp(1.5rem,3vw,2rem);max-width:36ch">{len(baru)} harga ini ada di lembar katalog, belum masuk daftar utama.</h2>
+    <p style="max-width:58ch;margin-top:0.9rem">Kalau tertarik pada salah satunya, tanya lewat WhatsApp. Kami cek stok bunga hari itu dulu, lalu kirim ukuran dan contoh foto buketnya.</p>
+    <ul class="harga-baru">{''.join(chip_harga(h) for h in baru)}</ul>
+  </div>
+</section>"""
+    termurah = min(s["min"] for s in lembar)
+    termahal = max(s["max"] for s in lembar)
+    return kepala(
+        "Katalog foto buket, Perfect Flowers",
+        "%d lembar katalog foto buket Perfect Flowers, dari %s sampai %s. Semua foto buket asli toko." % (
+            len(lembar), rupiah(termurah), rupiah(termahal)),
+        "katalog",
+        "/katalog/foto/",
+    ) + f"""
+<div class="page-head">
+  <div class="wrap">
+    <p class="label" data-nomor="01">Katalog foto</p>
+    <h1>Katalog foto, {len(lembar)} lembar, semua buket kami.</h1>
+    <p>Ini lembar katalog yang biasa kami kirim lewat WhatsApp. Semua foto adalah buket yang sudah kami buat sendiri, dan harga tertulis di tiap foto adalah harga jadi, dari {rupiah(termurah)} sampai {rupiah(termahal)}. Lembar bisa dibuka sendiri untuk ukuran penuh.</p>
+  </div>
+</div>
+{blok_baru}
+<section style="padding-top:0">
+  <div class="wrap">
+    <p class="label" data-nomor="03">Lembar katalog</p>
+    <div class="lembar-grid">{lembar_foto(lembar)}</div>
+    <p style="margin-top:1.8rem"><a class="tautan" href="/katalog/">Lihat daftar harga per buket</a></p>
   </div>
 </section>
 """ + kaki()
@@ -448,8 +796,9 @@ def halaman_produk(tier, harga):
     lain.sort(key=lambda h: abs(h - harga))
     terkait = "".join(kartu_produk(tier[h]["foto"][0], h) for h in lain[:4])
     galeri = "".join(
-        '<img src="/%s" alt="%s" width="%d" height="%d" loading="lazy" decoding="async">'
-        % (f["berkas"], escape(f["alt"]), f["w"], f["h"])
+        '<button class="bingkai-zoom" type="button" data-zoom data-foto="/%s" data-alt="%s">'
+        '<img src="/%s" alt="%s" width="%d" height="%d" loading="lazy" decoding="async"></button>'
+        % (f["berkas"], escape(f["alt"]), f["berkas"], escape(f["alt"]), f["w"], f["h"])
         for f in data["foto"][1:]
     )
     blok_galeri = ""
@@ -471,7 +820,10 @@ def halaman_produk(tier, harga):
     <p class="label" data-nomor="01">Detail buket</p>
     <div class="detail__isi">
       <div class="detail__foto">
-        <img src="/{data['foto'][0]['berkas']}" alt="{escape(data['foto'][0]['alt'])}" width="{data['foto'][0]['w']}" height="{data['foto'][0]['h']}" fetchpriority="high" decoding="async">
+        <button class="bingkai-zoom" type="button" data-zoom data-foto="/{data['foto'][0]['berkas']}" data-alt="{escape(data['foto'][0]['alt'])}">
+          <img src="/{data['foto'][0]['berkas']}" alt="{escape(data['foto'][0]['alt'])}" width="{data['foto'][0]['w']}" height="{data['foto'][0]['h']}" fetchpriority="high" decoding="async">
+          <span class="petunjuk-zoom">Klik untuk ukuran penuh</span>
+        </button>
       </div>
       <div class="detail__teks">
         <h1>Buket {harga // 1000}K</h1>
@@ -644,14 +996,16 @@ def main():
         shutil.rmtree(DIST)
     os.makedirs(DIST, exist_ok=True)
 
-    foto = siapkan_gambar()
+    foto, lembar = siapkan_gambar()
 
     tier = {}
     for f in foto:
+        # potongan pricelist untuk harga di SEMBUNYI sudah dilewati di siapkan_gambar
         tier.setdefault(f["harga"], {"foto": []})
         tier[f["harga"]]["foto"].append(f)
     for h in tier:
-        tier[h]["foto"].sort(key=lambda f: f["berkas"])
+        # foto satuan (utama=0) tampil lebih dulu, jadi dipakai sebagai foto utama
+        tier[h]["foto"].sort(key=lambda f: (f.get("utama", 1), f["berkas"]))
 
     dist_aset = os.path.join(DIST, "assets")
     shutil.copytree(os.path.join(ROOT, "assets", "css"), os.path.join(dist_aset, "css"))
@@ -659,7 +1013,8 @@ def main():
     tulis("assets/favicon.svg", FAVICON)
 
     tulis("index.html", halaman_beranda(tier))
-    tulis("katalog/index.html", halaman_katalog(tier))
+    tulis("katalog/index.html", halaman_katalog(tier, lembar))
+    tulis("katalog/foto/index.html", halaman_katalog_foto(lembar, tier))
     for h in sorted(tier):
         tulis("katalog/%s/index.html" % slug(h), halaman_produk(tier, h))
     tulis("tentang/index.html", halaman_tentang(tier))
@@ -668,7 +1023,7 @@ def main():
 
     if SITE.get("url"):
         url = SITE["url"].rstrip("/")
-        halaman = ["/", "/katalog/", "/tentang/", "/kontak/"] + [
+        halaman = ["/", "/katalog/", "/katalog/foto/", "/tentang/", "/kontak/"] + [
             "/katalog/%s/" % slug(h) for h in sorted(tier)
         ]
         isi = ['<?xml version="1.0" encoding="UTF-8"?>',
@@ -682,7 +1037,8 @@ def main():
         tulis("robots.txt", "User-agent: *\nAllow: /\n")
 
     jumlah = sum(len(v["foto"]) for v in tier.values())
-    print("Selesai. %d halaman, %d produk, %d foto." % (5 + len(tier), len(tier), jumlah))
+    print("Selesai. %d halaman, %d produk, %d foto, %d lembar katalog." % (
+        6 + len(tier), len(tier), jumlah, len(lembar)))
     if not (SITE.get("wa") or "").strip():
         print("PERHATIAN: nomor WhatsApp masih kosong di data/site.json.")
         print("           Tombol order sementara mengarah ke /kontak/.")

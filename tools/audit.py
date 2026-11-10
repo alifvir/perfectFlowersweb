@@ -52,10 +52,11 @@ for p in sorted(halaman):
             f = os.path.join(DIST, src.group(1).lstrip("/"))
             if not os.path.exists(f):
                 masalah.append("%s: gambar hilang %s" % (nama, src.group(1)))
-    # aset css/js
+    # aset css/js (abaikan ?v= hash versi)
     for aset in re.findall(r'(?:href|src)="(/assets/[^"]+)"', html):
-        if not os.path.exists(os.path.join(DIST, aset.lstrip("/"))):
-            masalah.append("%s: aset hilang %s" % (nama, aset))
+        bersih = aset.split("?")[0]
+        if not os.path.exists(os.path.join(DIST, bersih.lstrip("/"))):
+            masalah.append("%s: aset hilang %s" % (nama, bersih))
 
 ukuran = Counter()
 for akar, _dirs, berkas in os.walk(DIST):
