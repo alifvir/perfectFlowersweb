@@ -350,6 +350,12 @@ def siapkan_gambar():
         im2.thumbnail(ukuran, Image.LANCZOS)
         im2.save(os.path.join(IMG, keluar), "WEBP", quality=84, method=6)
 
+    # poster ketentuan pemesanan (teks kecil, jadi kualitasnya lebih tinggi)
+    tnc = Image.open(os.path.join(SRC, "tnc.jpeg")).convert("RGB")
+    if tnc.width > 1000:
+        tnc = tnc.resize((1000, round(tnc.height * 1000 / tnc.width)), Image.LANCZOS)
+    tnc.save(os.path.join(IMG, "tnc.webp"), "WEBP", quality=88, method=6)
+
     # lembar katalog foto. Label harga sudah menempel di dalam foto, jadi lembar
     # tidak dipotong: tiap lembar diberi bingkai warna latarnya sendiri sampai
     # rasio seragam, supaya semua kotak di grid tingginya sama dan tidak ada
@@ -518,6 +524,7 @@ def kaki():
           <li><a href="/#cara-order">Cara order</a></li>
           <li><a href="/tentang/">Tentang</a></li>
           <li><a href="/kontak/">Kontak dan pembayaran</a></li>
+          <li><a href="/kontak/#ketentuan">Ketentuan pemesanan</a></li>
         </ul>
       </div>
       <div>
@@ -839,6 +846,7 @@ def halaman_produk(tier, harga):
           <li><b>Pengerjaan</b> dimulai setelah form order dan DP {SITE["dp_persen"]}% masuk, jadwal ambil disepakati lewat WhatsApp.</li>
           <li><b>Pengambilan</b> di {escape(SITE["alamat"])}, {escape(SITE["petunjuk"]).lower()}</li>
         </ul>
+        <p style="margin-top:1rem"><a class="tautan" href="/kontak/#ketentuan">Baca ketentuan pemesanan lengkap</a></p>
       </div>
     </div>
     {blok_galeri}
@@ -909,6 +917,14 @@ def halaman_kontak(tier):
       <p class="teks-kecil">Placeholder: isi kolom <code>wa</code> pada <code>data/site.json</code>, lalu jalankan <code>python build.py</code>. Tombol order di seluruh halaman akan langsung mengarah ke nomor tersebut.</p>
     </div>"""
 
+    pesan_tnc = "Halo Perfect Flowers, saya mau tanya ketentuan pemesanan buket."
+    tautan_tnc = wa_tautan(pesan_tnc)
+    if tautan_tnc:
+        tombol_tnc = ('<a class="tautan" href="%s" target="_blank" rel="noopener">'
+                      'Tanya soal ketentuan lewat WhatsApp</a>' % escape(tautan_tnc))
+    else:
+        tombol_tnc = '<a class="tautan" href="/kontak/">Tanya soal ketentuan</a>'
+
     return kepala(
         "Kontak dan pembayaran, Perfect Flowers",
         "Nomor WhatsApp, alamat pengambilan, rekening BCA, QRIS, dan ketentuan pemesanan Perfect Flowers.",
@@ -959,6 +975,26 @@ def halaman_kontak(tier):
         <p>Lihat dulu daftar harga dan foto buket pada tiap harga, supaya pilihan dan budget langsung cocok.</p>
         <p style="margin-top:1rem"><a class="tautan" href="/katalog/">Buka katalog</a></p>
       </div>
+    </div>
+  </div>
+</section>
+<section id="ketentuan" style="padding-top:0">
+  <div class="wrap">
+    <p class="label" data-nomor="02">Ketentuan lengkap</p>
+    <div class="tnc">
+      <div>
+        <h2>Ketentuan pemesanan, versi lengkap.</h2>
+        <p style="margin-top:1rem">Ini poster ketentuan yang biasa kami kirim ke pelanggan. Isinya sama dengan ringkasan di atas, ditulis lebih lengkap: DP, cara bayar, ketersediaan bunga, dan kebijakan pembatalan.</p>
+        <p class="teks-kecil" style="margin-top:0.9rem">Poster bisa diklik untuk dibuka ukuran penuh, jadi tulisan kecilnya tetap terbaca di HP.</p>
+        <p style="margin-top:1.2rem">{tombol_tnc}</p>
+      </div>
+      <figure class="tnc__gambar">
+        <button class="bingkai-zoom" type="button" data-zoom data-foto="/assets/img/tnc.webp" data-alt="Poster ketentuan pemesanan Perfect Flowers: DP minimal 50 persen, pembayaran lewat QRIS atau transfer BCA, ketersediaan bunga mengikuti stok, dan DP tidak dapat dikembalikan">
+          <img src="/assets/img/tnc.webp" alt="Poster ketentuan pemesanan Perfect Flowers: DP minimal 50 persen, pembayaran lewat QRIS atau transfer BCA 8670697011 a.n. Eli Nofiyanti, ketersediaan bunga mengikuti stok hari pengerjaan, dan DP tidak dapat dikembalikan" width="1000" height="1500" loading="lazy" decoding="async">
+          <span class="petunjuk-zoom">Klik untuk ukuran penuh</span>
+        </button>
+        <figcaption>Ketentuan pemesanan Perfect Flowers</figcaption>
+      </figure>
     </div>
   </div>
 </section>

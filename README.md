@@ -47,6 +47,9 @@ Foto buket asli per harga. Nama berkas = harganya: `175k.jpeg`, `175k (2).jpeg`,
 - Harga yang belum ada di pricelist otomatis dapat halaman sendiri (mis. 80K, 120K, 175K, 260K).
 - Harga di `SEMBUNYI` hanya menyembunyikan potongan pricelist; foto satuan tetap tampil. Menambah foto `65k.*` berarti harga itu hidup lagi.
 
+## Ketentuan pemesanan (poster)
+`assets-src/tnc.jpeg` (poster asli dari owner) diubah jadi `assets/img/tnc.webp` (1000x1500, q88 — teks kecil butuh kualitas lebih tinggi) dan tampil di `/kontak/#ketentuan`: teks ringkas di kiri, poster di kanan, bisa diklik untuk lightbox ukuran penuh. Ditautkan dari footer ("Ketentuan pemesanan") dan dari catatan di halaman detail buket.
+
 ## Foto ukuran penuh
 
 Semua foto produk bisa diklik untuk dibuka besar lewat lightbox `<dialog>` di `site.js` (tanpa library): tombol kaca pembesar di pojok kartu, foto utama dan galeri di halaman detail, tutup dengan Esc / tombol × / klik latar.
