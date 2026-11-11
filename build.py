@@ -18,7 +18,7 @@ import shutil
 from html import escape
 
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageDraw, ImageOps
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "assets-src")
@@ -356,6 +356,19 @@ def siapkan_gambar():
         tnc = tnc.resize((1000, round(tnc.height * 1000 / tnc.width)), Image.LANCZOS)
     tnc.save(os.path.join(IMG, "tnc.webp"), "WEBP", quality=88, method=6)
 
+    # logo toko: dipotong lingkaran supaya sudut putihnya tidak tampil di atas
+    # latar krem. Dipakai di header, footer, dan favicon.
+    logo = Image.open(os.path.join(SRC, "logo.jpeg")).convert("RGB")
+    logo = ImageOps.fit(logo, (512, 512), Image.LANCZOS)
+    kepala_logo = Image.new("L", (2048, 2048), 0)
+    ImageDraw.Draw(kepala_logo).ellipse((2, 2, 2044, 2044), fill=255)
+    lingkaran = kepala_logo.resize((512, 512), Image.LANCZOS)
+    logo.putalpha(lingkaran)
+    logo.save(os.path.join(IMG, "logo.webp"), "WEBP", quality=90, method=6)
+    for ukuran in (64, 180):
+        kecil = logo.resize((ukuran, ukuran), Image.LANCZOS)
+        kecil.save(os.path.join(IMG, "logo-%d.png" % ukuran), "PNG", optimize=True)
+
     # lembar katalog foto. Label harga sudah menempel di dalam foto, jadi lembar
     # tidak dipotong: tiap lembar diberi bingkai warna latarnya sendiri sampai
     # rasio seragam, supaya semua kotak di grid tingginya sama dan tidak ada
@@ -447,7 +460,7 @@ def tombol_wa_melayang():
 
 
 def kepala(judul, deskripsi, aktif, kanonikal=""):
-    fav = '/assets/favicon.svg'
+    fav = '/assets/img/logo-64.png'
     kanon = ""
     if SITE.get("url") and kanonikal:
         kanon = '<link rel="canonical" href="%s%s">' % (SITE["url"], kanonikal)
@@ -467,7 +480,8 @@ def kepala(judul, deskripsi, aktif, kanonikal=""):
 <meta property="og:description" content="{escape(deskripsi)}">
 <meta property="og:image" content="/assets/img/hero.webp">
 {og_url}
-<link rel="icon" href="{fav}" type="image/svg+xml">
+<link rel="icon" href="{fav}" type="image/png">
+<link rel="apple-touch-icon" href="/assets/img/logo-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap">
@@ -478,7 +492,10 @@ def kepala(judul, deskripsi, aktif, kanonikal=""):
 <header class="site-head">
   <div class="wrap">
     <div class="site-head__row">
-      <a class="merek" href="/">Perfect Flowers<span>Tangerang</span></a>
+      <a class="merek" href="/">
+        <img class="merek__logo" src="/assets/img/logo.webp" alt="" width="46" height="46" decoding="async">
+        <span class="merek__nama">Perfect Flowers</span>
+      </a>
       <button class="nav-tombol" type="button" data-nav-tombol aria-expanded="false" aria-controls="nav-utama">
         <span class="nav-tombol__garis" aria-hidden="true"></span> Menu
       </button>
@@ -486,6 +503,7 @@ def kepala(judul, deskripsi, aktif, kanonikal=""):
         <ul>
           {nav_aktif(aktif, "katalog", "/katalog/", "Katalog")}
           {nav_aktif(aktif, "cara", "/#cara-order", "Cara order")}
+          {nav_aktif(aktif, "ketentuan", "/#ketentuan", "Ketentuan")}
           {nav_aktif(aktif, "tentang", "/tentang/", "Tentang")}
           {nav_aktif(aktif, "kontak", "/kontak/", "Kontak")}
         </ul>
@@ -512,6 +530,7 @@ def kaki():
   <div class="wrap">
     <div class="site-foot__isi">
       <div>
+        <img class="site-foot__logo" src="/assets/img/logo.webp" alt="" width="56" height="56" loading="lazy" decoding="async">
         <h2>{escape(SITE["brand"])}</h2>
         <p>Buket bunga yang dirakit setelah order fix, diambil di Tangerang.</p>
         <p class="teks-kecil">{escape(SITE["tagline"])}</p>
@@ -524,7 +543,7 @@ def kaki():
           <li><a href="/#cara-order">Cara order</a></li>
           <li><a href="/tentang/">Tentang</a></li>
           <li><a href="/kontak/">Kontak dan pembayaran</a></li>
-          <li><a href="/kontak/#ketentuan">Ketentuan pemesanan</a></li>
+          <li><a href="/#ketentuan">Ketentuan pemesanan</a></li>
         </ul>
       </div>
       <div>
@@ -550,8 +569,17 @@ def kaki():
 """
 
 
+def band(harga):
+    """Kelompok harga, dipakai untuk warna penanda di kartu dan tombol saring."""
+    if harga < 100000:
+        return "kecil"
+    if harga < 200000:
+        return "sedang"
+    return "besar"
+
+
 def kartu_produk(foto, harga, kelas_extra=""):
-    return f"""<article class="kartu" data-harga="{harga}"{kelas_extra}>
+    return f"""<article class="kartu" data-harga="{harga}" data-band="{band(harga)}"{kelas_extra}>
   <a class="kartu__tautan" href="/katalog/{slug(harga)}/">
     <img src="/{foto['berkas']}" alt="{escape(foto['alt'])}" width="{foto['w']}" height="{foto['h']}" loading="lazy" decoding="async">
     <div class="kartu__meta">
@@ -673,7 +701,7 @@ def halaman_beranda(tier):
           <dt>Atas nama</dt><dd>{escape(SITE["bank"]["atas_nama"])}</dd>
         </dl>
       </div>
-      <p class="teks-kecil">DP tidak dapat dikembalikan bila order dibatalkan sepihak, karena bunga dan material sudah disiapkan untuk pesanan tersebut.</p>
+      <p class="teks-kecil">Bukti transfer dikirim lewat WhatsApp supaya pesanan langsung masuk daftar kerja.</p>
     </div>
     <div class="qris">
       <img src="/assets/img/qris.webp" alt="Kode QRIS Perfect Flowers untuk pembayaran DP" width="720" height="720" loading="lazy" decoding="async">
@@ -682,11 +710,37 @@ def halaman_beranda(tier):
   </div>
 </section>
 
+<section class="ketentuan" id="ketentuan">
+  <div class="wrap">
+    <p class="label" data-nomor="04">Ketentuan</p>
+    <div class="tnc">
+      <div>
+        <h2>Ketentuan pemesanan, dibaca sebelum order.</h2>
+        <p style="margin-top:1rem">Empat hal ini yang paling sering ditanyakan. Versi lengkapnya ada di poster sebelah, sama dengan poster yang kami kirim lewat WhatsApp.</p>
+        <ul class="ketentuan__daftar">
+          <li><b>DP {SITE["dp_persen"]}%</b><span>Dibayar setelah form fix order diisi, bukan saat tanya-tanya.</span></li>
+          <li><b>DP tidak dikembalikan</b><span>Bila order dibatalkan sepihak, karena bunga dan material sudah disiapkan.</span></li>
+          <li><b>Isi bunga ikut stok</b><span>Jenis dan warna menyesuaikan stok hari pengerjaan, hasil diusahakan mirip foto sekitar 90%.</span></li>
+          <li><b>Bukti transfer</b><span>Dikirim lewat chat supaya pesanan langsung masuk daftar kerja.</span></li>
+        </ul>
+        <p style="margin-top:1.2rem">{tombol_order("tautan", "Tanya soal ketentuan lewat WhatsApp", "Halo Perfect Flowers, saya mau tanya ketentuan pemesanan buket.")}</p>
+      </div>
+      <figure class="tnc__gambar">
+        <button class="bingkai-zoom" type="button" data-zoom data-foto="/assets/img/tnc.webp" data-alt="Poster ketentuan pemesanan Perfect Flowers: DP minimal 50 persen, pembayaran lewat QRIS atau transfer BCA, ketersediaan bunga mengikuti stok, dan DP tidak dapat dikembalikan">
+          <img src="/assets/img/tnc.webp" alt="Poster ketentuan pemesanan Perfect Flowers: DP minimal 50 persen, pembayaran lewat QRIS atau transfer BCA 8670697011 a.n. Eli Nofiyanti, ketersediaan bunga mengikuti stok hari pengerjaan, dan DP tidak dapat dikembalikan" width="1000" height="1500" loading="lazy" decoding="async">
+          <span class="petunjuk-zoom">Klik untuk ukuran penuh</span>
+        </button>
+        <figcaption>Ketentuan pemesanan Perfect Flowers</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
 <section class="lokasi">
   <div class="wrap lokasi__isi">
     <img src="/assets/img/lokasi.webp" alt="Patokan lokasi pengambilan buket Perfect Flowers di Gg. Peluru No.23 Tangerang" width="900" height="900" loading="lazy" decoding="async">
     <div>
-      <p class="label" data-nomor="04">Lokasi</p>
+      <p class="label" data-nomor="05">Lokasi</p>
       <h2>Pengambilan di rumah, bukan dikirim.</h2>
       <address>{escape(SITE["alamat"])}<br>{escape(SITE["petunjuk"])}</address>
       <p class="teks-kecil">Pengambilan dilakukan sesuai jam yang disepakati saat order, supaya buket tidak menunggu terlalu lama di luar.</p>
@@ -846,7 +900,7 @@ def halaman_produk(tier, harga):
           <li><b>Pengerjaan</b> dimulai setelah form order dan DP {SITE["dp_persen"]}% masuk, jadwal ambil disepakati lewat WhatsApp.</li>
           <li><b>Pengambilan</b> di {escape(SITE["alamat"])}, {escape(SITE["petunjuk"]).lower()}</li>
         </ul>
-        <p style="margin-top:1rem"><a class="tautan" href="/kontak/#ketentuan">Baca ketentuan pemesanan lengkap</a></p>
+        <p style="margin-top:1rem"><a class="tautan" href="/#ketentuan">Baca ketentuan pemesanan lengkap</a></p>
       </div>
     </div>
     {blok_galeri}
@@ -917,14 +971,6 @@ def halaman_kontak(tier):
       <p class="teks-kecil">Placeholder: isi kolom <code>wa</code> pada <code>data/site.json</code>, lalu jalankan <code>python build.py</code>. Tombol order di seluruh halaman akan langsung mengarah ke nomor tersebut.</p>
     </div>"""
 
-    pesan_tnc = "Halo Perfect Flowers, saya mau tanya ketentuan pemesanan buket."
-    tautan_tnc = wa_tautan(pesan_tnc)
-    if tautan_tnc:
-        tombol_tnc = ('<a class="tautan" href="%s" target="_blank" rel="noopener">'
-                      'Tanya soal ketentuan lewat WhatsApp</a>' % escape(tautan_tnc))
-    else:
-        tombol_tnc = '<a class="tautan" href="/kontak/">Tanya soal ketentuan</a>'
-
     return kepala(
         "Kontak dan pembayaran, Perfect Flowers",
         "Nomor WhatsApp, alamat pengambilan, rekening BCA, QRIS, dan ketentuan pemesanan Perfect Flowers.",
@@ -961,7 +1007,7 @@ def halaman_kontak(tier):
       </div>
     </div>
     <div style="display:grid;gap:clamp(1rem,2.4vw,1.4rem)">
-      <div class="kartu-info">
+      <div class="kartu-info" id="ketentuan">
         <h2>Ketentuan pemesanan</h2>
         <ul class="catatan" style="border-top:0;margin-top:0.4rem">
           <li><b>DP {SITE["dp_persen"]}%</b> dibayar setelah form fix order diisi, bukan saat tanya-tanya.</li>
@@ -969,32 +1015,13 @@ def halaman_kontak(tier):
           <li><b>Jenis bunga</b> menyesuaikan stok hari pengerjaan. Hasil diusahakan mirip foto, sekitar 90%.</li>
           <li><b>Bukti transfer</b> dikirim lewat chat supaya pesanan langsung masuk daftar kerja.</li>
         </ul>
+        <p style="margin-top:1rem"><a class="tautan" href="/#ketentuan">Baca ketentuan lengkap dan posternya</a></p>
       </div>
       <div class="kartu-info">
         <h2>Sebelum order</h2>
         <p>Lihat dulu daftar harga dan foto buket pada tiap harga, supaya pilihan dan budget langsung cocok.</p>
         <p style="margin-top:1rem"><a class="tautan" href="/katalog/">Buka katalog</a></p>
       </div>
-    </div>
-  </div>
-</section>
-<section id="ketentuan" style="padding-top:0">
-  <div class="wrap">
-    <p class="label" data-nomor="02">Ketentuan lengkap</p>
-    <div class="tnc">
-      <div>
-        <h2>Ketentuan pemesanan, versi lengkap.</h2>
-        <p style="margin-top:1rem">Ini poster ketentuan yang biasa kami kirim ke pelanggan. Isinya sama dengan ringkasan di atas, ditulis lebih lengkap: DP, cara bayar, ketersediaan bunga, dan kebijakan pembatalan.</p>
-        <p class="teks-kecil" style="margin-top:0.9rem">Poster bisa diklik untuk dibuka ukuran penuh, jadi tulisan kecilnya tetap terbaca di HP.</p>
-        <p style="margin-top:1.2rem">{tombol_tnc}</p>
-      </div>
-      <figure class="tnc__gambar">
-        <button class="bingkai-zoom" type="button" data-zoom data-foto="/assets/img/tnc.webp" data-alt="Poster ketentuan pemesanan Perfect Flowers: DP minimal 50 persen, pembayaran lewat QRIS atau transfer BCA, ketersediaan bunga mengikuti stok, dan DP tidak dapat dikembalikan">
-          <img src="/assets/img/tnc.webp" alt="Poster ketentuan pemesanan Perfect Flowers: DP minimal 50 persen, pembayaran lewat QRIS atau transfer BCA 8670697011 a.n. Eli Nofiyanti, ketersediaan bunga mengikuti stok hari pengerjaan, dan DP tidak dapat dikembalikan" width="1000" height="1500" loading="lazy" decoding="async">
-          <span class="petunjuk-zoom">Klik untuk ukuran penuh</span>
-        </button>
-        <figcaption>Ketentuan pemesanan Perfect Flowers</figcaption>
-      </figure>
     </div>
   </div>
 </section>
@@ -1018,13 +1045,6 @@ def halaman_404():
 """ + kaki()
 
 
-FAVICON = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Perfect Flowers">
-<rect width="64" height="64" rx="14" fill="#5c3120"/>
-<text x="32" y="43" font-family="Georgia, serif" font-size="30" fill="#fbf7f1" text-anchor="middle">PF</text>
-</svg>
-"""
-
-
 # ---------------------------------------------------------------- main
 
 def main():
@@ -1046,7 +1066,6 @@ def main():
     dist_aset = os.path.join(DIST, "assets")
     shutil.copytree(os.path.join(ROOT, "assets", "css"), os.path.join(dist_aset, "css"))
     shutil.copytree(os.path.join(ROOT, "assets", "js"), os.path.join(dist_aset, "js"))
-    tulis("assets/favicon.svg", FAVICON)
 
     tulis("index.html", halaman_beranda(tier))
     tulis("katalog/index.html", halaman_katalog(tier, lembar))

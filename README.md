@@ -48,7 +48,10 @@ Foto buket asli per harga. Nama berkas = harganya: `175k.jpeg`, `175k (2).jpeg`,
 - Harga di `SEMBUNYI` hanya menyembunyikan potongan pricelist; foto satuan tetap tampil. Menambah foto `65k.*` berarti harga itu hidup lagi.
 
 ## Ketentuan pemesanan (poster)
-`assets-src/tnc.jpeg` (poster asli dari owner) diubah jadi `assets/img/tnc.webp` (1000x1500, q88 — teks kecil butuh kualitas lebih tinggi) dan tampil di `/kontak/#ketentuan`: teks ringkas di kiri, poster di kanan, bisa diklik untuk lightbox ukuran penuh. Ditautkan dari footer ("Ketentuan pemesanan") dan dari catatan di halaman detail buket.
+`assets-src/tnc.jpeg` (poster asli dari owner) diubah jadi `assets/img/tnc.webp` (1000x1500, q88 — teks kecil butuh kualitas lebih tinggi) dan tampil di **beranda** `/` bagian `#ketentuan`: empat ketentuan ringkas di kiri, poster di kanan, bisa diklik untuk lightbox ukuran penuh. Ditautkan dari menu, footer, halaman `/kontak/#ketentuan` (kartu ringkasnya tetap di sana), dan dari catatan di halaman detail buket.
+
+## Logo dan warna
+`assets-src/logo.jpeg` (logo bulat dari owner) dipotong lingkaran lalu disimpan sebagai `assets/img/logo.webp` (512, transparan di luar lingkaran) dan `logo-64.png`/`logo-180.png` untuk favicon serta ikon iOS. Logo dipakai di header dan footer. Palet CSS diambil dari warna logo (lavender, emas, koral, pink, ungu, sage), lihat `DESIGN.md`.
 
 ## Foto ukuran penuh
 
