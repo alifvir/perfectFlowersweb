@@ -51,7 +51,16 @@ Foto buket asli per harga. Nama berkas = harganya: `175k.jpeg`, `175k (2).jpeg`,
 `assets-src/tnc.jpeg` (poster asli dari owner) diubah jadi `assets/img/tnc.webp` (1000x1500, q88 — teks kecil butuh kualitas lebih tinggi) dan tampil di **beranda** `/` bagian `#ketentuan`: empat ketentuan ringkas di kiri, poster di kanan, bisa diklik untuk lightbox ukuran penuh. Ditautkan dari menu, footer, halaman `/kontak/#ketentuan` (kartu ringkasnya tetap di sana), dan dari catatan di halaman detail buket.
 
 ## Logo dan warna
-`assets-src/logo.jpeg` (logo bulat dari owner) dipotong lingkaran lalu disimpan sebagai `assets/img/logo.webp` (512, transparan di luar lingkaran) dan `logo-64.png`/`logo-180.png` untuk favicon serta ikon iOS. Logo dipakai di header dan footer. Palet CSS diambil dari warna logo (lavender, emas, koral, pink, ungu, sage), lihat `DESIGN.md`.
+`assets-src/logo.jpeg` (kartu nama bulat dari owner) diolah dua bentuk: **monogram PF** (potongan tengah, dipotong lingkaran) untuk header dan favicon/ikon iOS (`logo-mark.webp`, `logo-64.png`, `logo-180.png`), dan **kartu penuh** (`logo.webp`) untuk footer serta halaman `/tentang/`. Alasannya: teks kecil di kartu (TikTok, IG, WhatsApp) tidak terbaca pada 46px di header.
+
+Palet CSS diambil dari logo: blush kertas `#FDF8F5`, mawar dusti `#A8535A`, mawar muda `#E2B3AF`, eucalyptus `#33453A`/`#5F7355`, emas antik `#82642A`/`#C9B08A`. Judul memakai Cormorant Garamond (serif yang sama keluarganya dengan huruf di logo). Detail token dan alasannya di `DESIGN.md`.
+
+## Ornamen bunga
+Tiga ornamen garis tipis, semuanya dibuat di `build.py` (konstanta `IKON_DAUN`, `IKON_BUNGA`, fungsi `pembatas()`), tidak ada berkas gambar ornamen:
+
+- Foto hero dan foto utama halaman detail memakai lengkung atas (`border-radius: 999px 999px 16px 16px`) plus satu busur emas di belakangnya, menggemakan busur di logo.
+- Tangkai eucalyptus (`sprig--alur`, `sprig--ketentuan`) di sudut panel cara order dan section ketentuan; disembunyikan di bawah 900px.
+- Kuntum lima kelopak sebagai pembatas di atas footer dan sebagai penanda tiap poin ketentuan di beranda.
 
 ## Foto ukuran penuh
 

@@ -356,18 +356,27 @@ def siapkan_gambar():
         tnc = tnc.resize((1000, round(tnc.height * 1000 / tnc.width)), Image.LANCZOS)
     tnc.save(os.path.join(IMG, "tnc.webp"), "WEBP", quality=88, method=6)
 
-    # logo toko: dipotong lingkaran supaya sudut putihnya tidak tampil di atas
-    # latar krem. Dipakai di header, footer, dan favicon.
-    logo = Image.open(os.path.join(SRC, "logo.jpeg")).convert("RGB")
-    logo = ImageOps.fit(logo, (512, 512), Image.LANCZOS)
-    kepala_logo = Image.new("L", (2048, 2048), 0)
-    ImageDraw.Draw(kepala_logo).ellipse((2, 2, 2044, 2044), fill=255)
-    lingkaran = kepala_logo.resize((512, 512), Image.LANCZOS)
-    logo.putalpha(lingkaran)
-    logo.save(os.path.join(IMG, "logo.webp"), "WEBP", quality=90, method=6)
+    # logo toko: kartu nama bulat dari owner. Di header dipakai potongan
+    # monogram PF karena teks kecil di kartu tidak terbaca pada 46px; logo
+    # penuh dipakai di footer dan halaman tentang.
+    logo_penuh = Image.open(os.path.join(SRC, "logo.jpeg")).convert("RGB")
+
+    def _bulat(im, ukuran=512):
+        im = ImageOps.fit(im, (ukuran, ukuran), Image.LANCZOS)
+        m = Image.new("L", (2048, 2048), 0)
+        ImageDraw.Draw(m).ellipse((4, 4, 2043, 2043), fill=255)
+        im.putalpha(m.resize((ukuran, ukuran), Image.LANCZOS))
+        return im
+
+    _bulat(logo_penuh).save(os.path.join(IMG, "logo.webp"), "WEBP", quality=90, method=6)
+    W, H = logo_penuh.size
+    monogram = logo_penuh.crop((int(W * 0.325), int(H * 0.105),
+                                int(W * 0.665), int(H * 0.445)))
+    tanda = _bulat(monogram)
+    tanda.save(os.path.join(IMG, "logo-mark.webp"), "WEBP", quality=90, method=6)
     for ukuran in (64, 180):
-        kecil = logo.resize((ukuran, ukuran), Image.LANCZOS)
-        kecil.save(os.path.join(IMG, "logo-%d.png" % ukuran), "PNG", optimize=True)
+        tanda.resize((ukuran, ukuran), Image.LANCZOS).save(
+            os.path.join(IMG, "logo-%d.png" % ukuran), "PNG", optimize=True)
 
     # lembar katalog foto. Label harga sudah menempel di dalam foto, jadi lembar
     # tidak dipotong: tiap lembar diberi bingkai warna latarnya sendiri sampai
@@ -446,8 +455,39 @@ def tombol_order(kelas="tombol", teks="Order via WhatsApp", pesan=None):
     return '<a class="%s" href="/kontak/">%s</a>' % (kelas, label)
 
 
+IKON_DAUN = ('<svg viewBox="0 0 160 96" fill="none" stroke="currentColor" stroke-width="1.1" '
+             'stroke-linecap="round" aria-hidden="true" focusable="false">'
+             '<path d="M10 86C46 70 96 44 148 8"/>'
+             '<ellipse cx="22" cy="56" rx="10" ry="6" transform="rotate(-56 22 56)"/>'
+             '<ellipse cx="34" cy="84" rx="10" ry="6" transform="rotate(34 34 84)"/>'
+             '<ellipse cx="54" cy="43" rx="10" ry="6" transform="rotate(-58 54 43)"/>'
+             '<ellipse cx="66" cy="71" rx="10" ry="6" transform="rotate(30 66 71)"/>'
+             '<ellipse cx="86" cy="30" rx="10" ry="6" transform="rotate(-56 86 30)"/>'
+             '<ellipse cx="98" cy="58" rx="10" ry="6" transform="rotate(32 98 58)"/>'
+             '<ellipse cx="116" cy="18" rx="10" ry="6" transform="rotate(-58 116 18)"/>'
+             '<ellipse cx="128" cy="46" rx="10" ry="6" transform="rotate(28 128 46)"/>'
+             '<ellipse cx="144" cy="9" rx="9" ry="5.4" transform="rotate(-44 144 9)"/>'
+             '</svg>')
+
+IKON_BUNGA = ('<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.15" '
+              'aria-hidden="true" focusable="false">'
+              '<ellipse cx="16" cy="8.6" rx="4.5" ry="6.3"/>'
+              '<ellipse cx="16" cy="8.6" rx="4.5" ry="6.3" transform="rotate(72 16 16)"/>'
+              '<ellipse cx="16" cy="8.6" rx="4.5" ry="6.3" transform="rotate(144 16 16)"/>'
+              '<ellipse cx="16" cy="8.6" rx="4.5" ry="6.3" transform="rotate(216 16 16)"/>'
+              '<ellipse cx="16" cy="8.6" rx="4.5" ry="6.3" transform="rotate(288 16 16)"/>'
+              '<circle cx="16" cy="16" r="2.1" fill="currentColor" stroke="none"/>'
+              '</svg>')
+
 IKON_WA = ('<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">'
            '<path fill="currentColor" d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2Zm5.8 14.13c-.24.68-1.4 1.3-1.93 1.35-.53.05-1.02.24-3.44-.72-2.93-1.15-4.75-4.2-4.9-4.4-.14-.2-1.16-1.55-1.16-2.96 0-1.4.73-2.09 1-2.38.26-.29.58-.36.77-.36l.56.01c.18 0 .42-.07.65.5.24.58.82 2 .89 2.14.07.14.12.31.02.5-.1.2-.15.32-.29.49-.15.17-.31.38-.44.51-.15.14-.3.3-.13.59.17.29.75 1.24 1.62 2.01 1.11.99 2.05 1.3 2.34 1.44.29.15.46.12.63-.07.17-.2.73-.85.93-1.14.19-.29.39-.24.65-.14.26.09 1.66.78 1.94.93.29.14.48.22.55.34.07.13.07.73-.17 1.41Z"/></svg>')
+
+
+def pembatas(kelas=""):
+    """Garis rambut dengan satu kuntum kecil di tengahnya."""
+    return ('<div class="pembatas %s" role="presentation">'
+            '<span class="pembatas__garis"></span>%s<span class="pembatas__garis"></span></div>'
+            % (kelas, IKON_BUNGA))
 
 
 def tombol_wa_melayang():
@@ -484,7 +524,7 @@ def kepala(judul, deskripsi, aktif, kanonikal=""):
 <link rel="apple-touch-icon" href="/assets/img/logo-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/assets/css/style.css?v={versi_aset('assets/css/style.css')}">
 </head>
 <body>
@@ -493,7 +533,7 @@ def kepala(judul, deskripsi, aktif, kanonikal=""):
   <div class="wrap">
     <div class="site-head__row">
       <a class="merek" href="/">
-        <img class="merek__logo" src="/assets/img/logo.webp" alt="" width="46" height="46" decoding="async">
+        <img class="merek__logo" src="/assets/img/logo-mark.webp" alt="" width="46" height="46" decoding="async">
         <span class="merek__nama">Perfect Flowers</span>
       </a>
       <button class="nav-tombol" type="button" data-nav-tombol aria-expanded="false" aria-controls="nav-utama">
@@ -528,9 +568,10 @@ def kaki():
     return f"""</main>
 <footer class="site-foot">
   <div class="wrap">
+    {pembatas("pembatas--kaki")}
     <div class="site-foot__isi">
       <div>
-        <img class="site-foot__logo" src="/assets/img/logo.webp" alt="" width="56" height="56" loading="lazy" decoding="async">
+        <img class="site-foot__logo" src="/assets/img/logo.webp" alt="Logo Perfect Flowers" width="72" height="72" loading="lazy" decoding="async">
         <h2>{escape(SITE["brand"])}</h2>
         <p>Buket bunga yang dirakit setelah order fix, diambil di Tangerang.</p>
         <p class="teks-kecil">{escape(SITE["tagline"])}</p>
@@ -659,6 +700,7 @@ def halaman_beranda(tier):
 </section>
 
 <section class="alur" id="cara-order">
+  <span class="sprig sprig--alur" aria-hidden="true">{IKON_DAUN}</span>
   <div class="wrap">
     <p class="label" data-nomor="02">Cara order</p>
     <h2>Tiga langkah, tanpa aplikasi baru.</h2>
@@ -711,6 +753,7 @@ def halaman_beranda(tier):
 </section>
 
 <section class="ketentuan" id="ketentuan">
+  <span class="sprig sprig--ketentuan" aria-hidden="true">{IKON_DAUN}</span>
   <div class="wrap">
     <p class="label" data-nomor="04">Ketentuan</p>
     <div class="tnc">
@@ -927,6 +970,10 @@ def halaman_tentang(tier):
     <p class="label" data-nomor="01">Tentang</p>
     <h1>Merangkai dari rumah, satu pesanan sekali jalan.</h1>
     <p>Perfect Flowers melayani pesanan buket dari rumah di {escape(SITE["alamat"])}. Semua pesanan masuk lewat WhatsApp dengan form fix order, lalu dirakit satu per satu.</p>
+    <figure class="tentang__logo">
+      <img src="/assets/img/logo.webp" alt="Logo Perfect Flowers: monogram PF dengan mawar, pita satin, dan daun eucalyptus" width="512" height="512" loading="lazy" decoding="async">
+      <figcaption>Kartu nama Perfect Flowers. TikTok @perfectflowers_id, Instagram {escape(SITE["handle"])}, WhatsApp {nomor_tampil()}.</figcaption>
+    </figure>
   </div>
 </div>
 <section style="padding-top:0.4rem">
