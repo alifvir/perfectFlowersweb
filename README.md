@@ -13,7 +13,7 @@ Git remote: `git@github.com:alifvir/perfectFlowersweb.git`
 | `data/site.json` | Identitas toko, nomor WhatsApp, rekening, alamat, domain |
 | `assets/` | CSS dan JS sumber (disalin ke `dist/assets`) |
 | `assets-src/` | Foto pricelist asli, QRIS, patokan lokasi. Tidak ikut terunggah |
-| `catalog/` | 8 lembar katalog foto (kolase buket + harga) untuk halaman `/katalog/foto/` |
+| `catalog/` | 8 lembar katalog foto (kolase buket + harga). Saat mode etalase, ini yang tayang di `/katalog/` |
 | `dist/` | Hasil build, inilah yang diunggah |
 | `tools/audit.py` | Pemeriksa hasil build: tautan mati, alt, jumlah h1, em dash |
 | `DESIGN.md` | Arah desain, palet, dial, dan alasannya |
@@ -21,13 +21,29 @@ Git remote: `git@github.com:alifvir/perfectFlowersweb.git`
 
 ## Halaman yang dihasilkan
 
+Mode etalase (default sekarang, `"produk_per_harga": false`):
+
 - `/` beranda
-- `/katalog/` daftar harga dengan penyaring budget
-- `/katalog/foto/` 8 lembar katalog foto, ditambah daftar harga yang belum masuk daftar utama
-- `/katalog/buket-<harga>k/` halaman detail, satu per harga
+- `/katalog/` etalase 8 lembar katalog foto, tiap lembar punya tombol tanya ketersediaan ke WhatsApp
 - `/tentang/`
 - `/kontak/`
 - `/404.html`
+- `/katalog/foto/` dan `/katalog/buket-<harga>k/` dialihkan ke `/katalog/`
+
+Mode produk (`"produk_per_harga": true`):
+
+- `/katalog/` daftar harga dengan penyaring budget
+- `/katalog/foto/` 8 lembar katalog foto
+- `/katalog/buket-<harga>k/` halaman detail, satu per harga
+
+## Saklar etalase
+
+`data/site.json` → `"produk_per_harga"`.
+
+- `false` (sekarang): foto per buket tidak dibuat sama sekali, katalog memakai lembar kolase. Kode halaman produk tetap ada, jadi tidak ada yang perlu ditulis ulang saat foto baru sudah siap.
+- `true`: 27 halaman buket dan 79 foto tayang lagi, `/katalog/` kembali ke daftar harga dengan penyaring.
+
+Saat mode etalase, tiap lembar punya tombol WhatsApp dengan pesan `... katalog foto lembar N (harga X sampai Y). Boleh info ketersediaan bunga hari ini? Budget saya: Rp ` — bagian budget sengaja kosong karena satu lembar memuat banyak harga dan customer yang menentukan.
 
 ## Potong foto produk
 
@@ -61,6 +77,12 @@ Tiga ornamen garis tipis, semuanya dibuat di `build.py` (konstanta `IKON_DAUN`, 
 - Foto hero dan foto utama halaman detail memakai lengkung atas (`border-radius: 999px 999px 16px 16px`) plus satu busur emas di belakangnya, menggemakan busur di logo.
 - Tangkai eucalyptus (`sprig--alur`, `sprig--ketentuan`) di sudut panel cara order dan section ketentuan; disembunyikan di bawah 900px.
 - Kuntum lima kelopak sebagai pembatas di atas footer dan sebagai penanda tiap poin ketentuan di beranda.
+
+## Foto patokan lokasi
+
+`assets-src/patokan-maps.jpeg` adalah tangkapan layar HP: street view berpanah hijau di atas, mini map di bawah. `build.py` hanya memakai bagian street view, dipotong `(0, 3% tinggi, lebar, 47% tinggi)` → `lokasi.webp` 900x903. Alasannya: pada potongan tengah 1:1, panah hijau (satu-satunya petunjuk arah) ikut terbuang dan bar status HP tetap kelihatan. Mini map diganti tombol Google Maps.
+
+Di beranda, section lokasi menaruh label di atas, lalu foto di kiri dan teks di kanan pada layar ≥860px.
 
 ## Foto ukuran penuh
 

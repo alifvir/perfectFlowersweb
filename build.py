@@ -83,6 +83,33 @@ SATUAN = os.path.join(KATALOG, "satuan")
 
 SITE = json.load(open(os.path.join(ROOT, "data", "site.json"), encoding="utf-8"))
 
+# Etalase foto per harga (halaman /katalog/buket-<harga>k/). Kalau false, foto
+# per buket ditahan dan katalog memakai lembar kolase catalog/. Kodenya tetap
+# utuh dan foto sumbernya tidak dihapus: ubah "produk_per_harga" jadi true di
+# data/site.json, build ulang, semua halaman buket tayang lagi.
+PRODUK = bool(SITE.get("produk_per_harga", True))
+
+HARGA_LEMBAR = sorted({h for s in LEMBAR for h in s["harga"]})
+
+
+def harga_produk():
+    """Harga yang punya halaman sendiri: pricelist plus nama foto satuan."""
+    hasil = {h for _kolom, _baris, daftar in GRIDS.values() for h in daftar}
+    if os.path.isdir(SATUAN):
+        for berkas in os.listdir(SATUAN):
+            nilai = harga_dari_nama(berkas)
+            if nilai:
+                hasil.add(nilai)
+    return sorted(hasil)
+
+
+def rentang_harga(tier):
+    """Harga terendah dan tertinggi yang ditampilkan di situs."""
+    if tier:
+        return min(tier), max(tier)
+    return min(HARGA_LEMBAR), max(HARGA_LEMBAR)
+
+
 _versi = {}
 
 
@@ -245,12 +272,8 @@ def harga_dari_nama(nama):
     return int(cocok.group(1)) * 1000 if cocok else None
 
 
-def siapkan_gambar():
+def _siapkan_produk():
     """Potong tiap sel pricelist jadi foto produk, buang label harga di bawah."""
-    if os.path.isdir(IMG):
-        shutil.rmtree(IMG)
-    os.makedirs(IMG, exist_ok=True)
-
     # tahap 1: ambil sel + deteksi posisi label tiap sel
     sel_grid = []
     for nama, (cols, rows, harga) in GRIDS.items():
@@ -331,6 +354,12 @@ def siapkan_gambar():
                 "utama": 0,
             })
 
+    return foto
+
+
+def _siapkan_aset():
+    """Hero, QRIS, patokan lokasi, poster ketentuan, dan logo. Selalu dibuat,
+    dipakai halaman mana pun, terlepas dari etalase yang sedang tayang."""
     # hero: foto buket asli (portrait). Bidang potong dipilih agar bagian atas
     # (terpal hijau) dan struk di bawah tidak ikut, fokus ke buketnya.
     hero = Image.open(os.path.join(SRC, "photos-35k.jpeg")).convert("RGB")
@@ -341,10 +370,9 @@ def siapkan_gambar():
     hero = hero.resize((800, 1000), Image.LANCZOS)
     hero.save(os.path.join(IMG, "hero.webp"), "WEBP", quality=84, method=6)
 
-    # qris dan patokan lokasi
+    # qris
     for nama, keluar, ukuran in [
         ("qris.jpeg", "qris.webp", (720, 720)),
-        ("patokan-maps.jpeg", "lokasi.webp", (900, 900)),
     ]:
         im2 = Image.open(os.path.join(SRC, nama)).convert("RGB")
         im2.thumbnail(ukuran, Image.LANCZOS)
@@ -355,6 +383,17 @@ def siapkan_gambar():
     if tnc.width > 1000:
         tnc = tnc.resize((1000, round(tnc.height * 1000 / tnc.width)), Image.LANCZOS)
     tnc.save(os.path.join(IMG, "tnc.webp"), "WEBP", quality=88, method=6)
+
+    # patokan lokasi: gambar aslinya tangkapan layar HP, bagian atas street view
+    # (ada panah hijau penunjuk rumah) dan bagian bawah mini map. Yang dipakai
+    # hanya street view, dipotong dari 3% sampai 47% tinggi asli supaya bar
+    # status HP hilang tapi panah dan label pin tetap utuh.
+    peta = Image.open(os.path.join(SRC, "patokan-maps.jpeg")).convert("RGB")
+    W, H = peta.size
+    peta = peta.crop((0, int(H * 0.03), W, int(H * 0.47)))
+    lebar_peta = 900
+    peta = peta.resize((lebar_peta, round(peta.height * lebar_peta / peta.width)), Image.LANCZOS)
+    peta.save(os.path.join(IMG, "lokasi.webp"), "WEBP", quality=84, method=6)
 
     # logo toko: kartu nama bulat dari owner. Di header dipakai potongan
     # monogram PF karena teks kecil di kartu tidak terbaca pada 46px; logo
@@ -378,6 +417,9 @@ def siapkan_gambar():
         tanda.resize((ukuran, ukuran), Image.LANCZOS).save(
             os.path.join(IMG, "logo-%d.png" % ukuran), "PNG", optimize=True)
 
+
+def _siapkan_lembar():
+    """Simpan 8 lembar kolase katalog, dipakai sebagai etalase foto."""
     # lembar katalog foto. Label harga sudah menempel di dalam foto, jadi lembar
     # tidak dipotong: tiap lembar diberi bingkai warna latarnya sendiri sampai
     # rasio seragam, supaya semua kotak di grid tingginya sama dan tidak ada
@@ -410,9 +452,22 @@ def siapkan_gambar():
             "jumlah": len(l["harga"]),
             "min": min(l["harga"]),
             "max": max(l["harga"]),
+            "harga": sorted(l["harga"]),
         })
 
-    return foto, hasil
+    return hasil
+
+
+def siapkan_gambar():
+    """Siapkan seluruh aset gambar ke dist/assets/img/."""
+    if os.path.isdir(IMG):
+        shutil.rmtree(IMG)
+    os.makedirs(IMG, exist_ok=True)
+
+    foto = _siapkan_produk() if PRODUK else []
+    _siapkan_aset()
+    lembar = _siapkan_lembar()
+    return foto, lembar
 
 
 # ---------------------------------------------------------------- komponen
@@ -565,6 +620,8 @@ def kaki():
     if tautan_wa:
         wa_kaki = '<li><a href="%s" target="_blank" rel="noopener">WhatsApp %s</a></li>' % (
             escape(tautan_wa), nomor_tampil())
+    tautan_katalog_foto = ('<li><a href="/katalog/foto/">Katalog foto</a></li>'
+                           if PRODUK else "")
     return f"""</main>
 <footer class="site-foot">
   <div class="wrap">
@@ -580,7 +637,7 @@ def kaki():
         <h2>Halaman</h2>
         <ul>
           <li><a href="/katalog/">Katalog buket</a></li>
-          <li><a href="/katalog/foto/">Katalog foto</a></li>
+          {tautan_katalog_foto}
           <li><a href="/#cara-order">Cara order</a></li>
           <li><a href="/tentang/">Tentang</a></li>
           <li><a href="/kontak/">Kontak dan pembayaran</a></li>
@@ -648,9 +705,21 @@ def ringkas(harga):
 
 # ---------------------------------------------------------------- halaman
 
-def halaman_beranda(tier):
-    pilihan = "".join(kartu_produk(tier[h]["foto"][0], h) for h in PILIHAN_BERANDA if h in tier)
-    termurah = min(tier)
+def halaman_beranda(tier, lembar):
+    termurah, termahal = rentang_harga(tier)
+    if PRODUK:
+        pilihan = "".join(kartu_produk(tier[h]["foto"][0], h) for h in PILIHAN_BERANDA if h in tier)
+    else:
+        # lembar termurah dulu supaya cocok dengan angka "dari Rp ..." di hero
+        pilihan = lembar_foto(sorted(lembar, key=lambda l: l["min"])[:4])
+    judul_pilihan = ("Buket pilihan, dari %s" % rupiah(termurah) if PRODUK
+                     else "Etalase buket, dari %s" % rupiah(termurah))
+    ket_pilihan = ("Semua foto di sini adalah buket yang sudah kami buat sendiri. Harga tertulis adalah harga jadi."
+                   if PRODUK else
+                   "Empat lembar pertama dari katalog foto kami. Tiap lembar memuat beberapa buket "
+                   "dengan harga tercetak di fotonya, jadi tinggal sebut harga yang cocok.")
+    aksi_pilihan = ('<a class="tautan" href="/katalog/">Lihat semua harga</a>' if PRODUK
+                    else '<a class="tautan" href="/katalog/">Lihat etalase lengkap</a>')
     return kepala(
         "Perfect Flowers, buket bunga di Tangerang",
         "Buket bunga dirakit setelah order fix, mulai %s. Ambil di Gg. Peluru No.23, Tangerang." % rupiah(termurah),
@@ -661,7 +730,7 @@ def halaman_beranda(tier):
   <div class="wrap hero__isi">
     <div>
       <h1>Buket bunga yang dirakit <em>hari itu</em>, bukan stok jadi.</h1>
-      <p class="hero__teks">Pilih sesuai budget, dari {rupiah(termurah)} sampai rangkaian besar. Isi bunga mengikuti stok pagi, jadi tidak ada dua buket yang sama persis.</p>
+      <p class="hero__teks">Pilih sesuai budget, dari {rupiah(termurah)} sampai {rupiah(termahal)}. Isi bunga mengikuti stok pagi, jadi tidak ada dua buket yang sama persis.</p>
       <div class="hero__aksi">
         <a class="tombol" href="/katalog/">Lihat katalog</a>
         {tombol_order("tombol tombol--outline", "Chat WhatsApp")}
@@ -690,12 +759,12 @@ def halaman_beranda(tier):
 <section>
   <div class="wrap">
     <div class="judul-bagian">
-      <h2>Buket pilihan, dari {rupiah(termurah)}</h2>
-      <p>Semua foto di sini adalah buket yang sudah kami buat sendiri. Harga tertulis adalah harga jadi.</p>
+      <h2>{judul_pilihan}</h2>
+      <p>{ket_pilihan}</p>
     </div>
     <p class="label" data-nomor="01">Pilihan buket</p>
-    <div class="produk-grid">{pilihan}</div>
-    <p style="margin-top:1.6rem"><a class="tautan" href="/katalog/">Lihat semua harga</a></p>
+    <div class="{'produk-grid' if PRODUK else 'lembar-grid'}">{pilihan}</div>
+    <p style="margin-top:1.6rem">{aksi_pilihan}</p>
   </div>
 </section>
 
@@ -781,15 +850,18 @@ def halaman_beranda(tier):
 
 <section class="lokasi">
   <div class="wrap lokasi__isi">
-    <img src="/assets/img/lokasi.webp" alt="Patokan lokasi pengambilan buket Perfect Flowers di Gg. Peluru No.23 Tangerang" width="900" height="900" loading="lazy" decoding="async">
-    <div>
-      <p class="label" data-nomor="05">Lokasi</p>
+    <p class="label" data-nomor="05">Lokasi</p>
+    <figure class="lokasi__foto">
+      <img src="/assets/img/lokasi.webp" alt="Patokan lokasi pengambilan buket Perfect Flowers di Gg. Peluru No.23 Tangerang, panah hijau menunjuk ke rumah" width="900" height="903" loading="lazy" decoding="async">
+      <figcaption>Tampak depan gang. Panah hijau menunjuk ke rumah pengambilan.</figcaption>
+    </figure>
+    <div class="lokasi__teks">
       <h2>Pengambilan di rumah, bukan dikirim.</h2>
       <address>{escape(SITE["alamat"])}<br>{escape(SITE["petunjuk"])}</address>
       <p class="teks-kecil">Pengambilan dilakukan sesuai jam yang disepakati saat order, supaya buket tidak menunggu terlalu lama di luar.</p>
       <div class="hero__aksi">
-        <a class="tombol tombol--outline" href="{escape(SITE["maps"])}">Buka Google Maps</a>
-        {tombol_order("tautan", "Tanya stok lewat WhatsApp")}
+        <a class="tombol" href="{escape(SITE["maps"])}">Buka Google Maps</a>
+        {tombol_order("tombol tombol--outline", "Tanya stok lewat WhatsApp")}
       </div>
     </div>
   </div>
@@ -798,32 +870,55 @@ def halaman_beranda(tier):
 
 
 def halaman_katalog(tier, lembar):
-    daftar = "".join(kartu_produk(tier[h]["foto"][0], h) for h in sorted(tier))
+    termurah, termahal = rentang_harga(tier)
+    if PRODUK:
+        isi = ('<p class="saring__hitung" data-hitung aria-live="polite"></p>'
+               '<div class="produk-grid" data-daftar-produk>%s</div>'
+               '<p style="margin-top:1.8rem"><a class="tautan" href="/katalog/foto/">'
+               'Lihat %d lembar katalog foto</a></p>'
+               % ("".join(kartu_produk(tier[h]["foto"][0], h) for h in sorted(tier)), len(lembar)))
+        saring = """
+    <div class="saring" data-saring role="group" aria-label="Saring buket berdasarkan harga">
+      <button type="button" data-batas="semua" aria-pressed="true">Semua</button>
+      <button type="button" data-batas="kecil" aria-pressed="false">Di bawah 100 ribu</button>
+      <button type="button" data-batas="sedang" aria-pressed="false">100 sampai 200 ribu</button>
+      <button type="button" data-batas="besar" aria-pressed="false">Di atas 200 ribu</button>
+    </div>"""
+        judul = "Harga buket, apa adanya."
+        ket = ("%d pilihan harga, dari %s sampai %s. Semua foto adalah buket yang sudah kami buat, "
+               "jadi yang kamu lihat memang contoh nyata, bukan gambar ilustrasi."
+               % (len(tier), rupiah(termurah), rupiah(termahal)))
+        nomor = "02"
+    else:
+        isi = ('<p class="etalase__ket">Harga tercetak di tiap foto, dari %s sampai %s. '
+               'Klik tombol di bawah lembar untuk menanyakan ketersediaan bunga hari ini.'
+               '<br>Foto ukuran penuh bisa dibuka dengan mengklik lembarnya.</p>'
+               '<div class="lembar-grid">%s</div>'
+               % (rupiah(termurah), rupiah(termahal), lembar_foto(lembar)))
+        saring = ""
+        judul = "Etalase buket, semua foto kami."
+        ket = ("%d lembar foto buket yang sudah kami buat sendiri. Tiap lembar memuat beberapa "
+               "buket dengan harga tercetak, jadi kamu bisa langsung menyebut harga yang pas "
+               "dengan budget." % len(lembar))
+        nomor = "02"
     return kepala(
         "Katalog buket bunga, Perfect Flowers",
-        "Daftar harga buket Perfect Flowers, dari %s sampai %s. Foto asli buket yang sudah dibuat."
-        % (rupiah(min(tier)), rupiah(max(tier))),
+        "Etalase foto buket Perfect Flowers, harga %s sampai %s. Semua foto buket asli toko."
+        % (rupiah(termurah), rupiah(termahal)),
         "katalog",
         "/katalog/",
     ) + f"""
 <div class="page-head">
   <div class="wrap">
     <p class="label" data-nomor="01">Katalog</p>
-    <h1>Harga buket, apa adanya.</h1>
-    <p>{len(tier)} pilihan harga, dari {rupiah(min(tier))} sampai {rupiah(max(tier))}. Semua foto adalah buket yang sudah kami buat, jadi yang kamu lihat memang contoh nyata, bukan gambar ilustrasi.</p>
+    <h1>{judul}</h1>
+    <p>{ket}</p>
   </div>
 </div>
 <section style="padding-top:0">
   <div class="wrap">
-    <div class="saring" data-saring role="group" aria-label="Saring buket berdasarkan harga">
-      <button type="button" data-batas="semua" aria-pressed="true">Semua</button>
-      <button type="button" data-batas="kecil" aria-pressed="false">Di bawah 100 ribu</button>
-      <button type="button" data-batas="sedang" aria-pressed="false">100 sampai 200 ribu</button>
-      <button type="button" data-batas="besar" aria-pressed="false">Di atas 200 ribu</button>
-    </div>
-    <p class="saring__hitung" data-hitung aria-live="polite"></p>
-    <div class="produk-grid" data-daftar-produk>{daftar}</div>
-    <p style="margin-top:1.8rem"><a class="tautan" href="/katalog/foto/">Lihat {len(lembar)} lembar katalog foto</a></p>
+    <p class="label" data-nomor="{nomor}">{'Daftar harga' if PRODUK else 'Etalase foto'}</p>{saring}
+    {isi}
   </div>
 </section>
 """ + kaki()
@@ -839,23 +934,40 @@ def chip_harga(harga):
     return '<li><a href="/kontak/"><b>%s</b><span>Cara pesan</span></a></li>' % rupiah(harga)
 
 
-def lembar_foto(lembar):
+def pesan_lembar(nomor, lembar):
+    """Pesan WA per lembar: ketersediaan ditanya dulu, budget diisi customer.
+
+    Satu lembar memuat banyak foto sekaligus, jadi harga yang diinginkan tidak
+    bisa ditebak situs. Kalimat terakhir sengaja menggantung supaya customer
+    melengkapi sendiri angka yang dia mau.
+    """
+    return ("Halo Perfect Flowers, saya lihat katalog foto lembar %d "
+            "(harga %s sampai %s). Boleh info ketersediaan bunga hari ini? "
+            "Budget saya: Rp " % (nomor, rupiah(lembar["min"]), rupiah(lembar["max"])))
+
+
+def lembar_foto(lembar, aksi=True):
     blok = []
     for nomor, l in enumerate(lembar, 1):
         alt = "Katalog foto lembar %d: %d buket dengan harga %s sampai %s" % (
             nomor, l["jumlah"], rupiah(l["min"]), rupiah(l["max"]))
+        tombol = ""
+        if aksi:
+            tombol = f"""
+  <a class="tombol tombol--outline tombol--penuh" href="{escape(wa_tautan(pesan_lembar(nomor, l)) or '/kontak/')}" target="_blank" rel="noopener">Tanya ketersediaan</a>
+  <p class="lembar__petunjuk">Sebutkan harga buket yang kamu mau, kami cek stoknya hari ini.</p>"""
         blok.append(f"""<figure class="lembar">
   <a class="lembar__tautan" href="/{l['berkas']}" target="_blank" rel="noopener">
     <img src="/{l['berkas']}" alt="{escape(alt)}" width="{l['w']}" height="{l['h']}" loading="lazy" decoding="async">
   </a>
-  <figcaption><strong>Lembar {nomor}</strong><span>{l['jumlah']} buket</span><span>{rupiah(l['min'])} sampai {rupiah(l['max'])}</span></figcaption>
+  <figcaption><strong>Lembar {nomor}</strong><span>{l['jumlah']} buket</span><span>{rupiah(l['min'])} sampai {rupiah(l['max'])}</span></figcaption>{tombol}
 </figure>""")
     return "".join(blok)
 
 
 def halaman_katalog_foto(lembar, tier):
     semua = sorted({h for s in LEMBAR for h in s["harga"]})
-    baru = [h for h in semua if h not in tier and h not in SEMBUNYI]
+    baru = [h for h in semua if h not in tier and h not in SEMBUNYI] if PRODUK else []
     blok_baru = ""
     if baru:
         blok_baru = f"""
@@ -863,10 +975,12 @@ def halaman_katalog_foto(lembar, tier):
   <div class="wrap">
     <p class="label" data-nomor="02">Harga di lembar katalog</p>
     <h2 style="font-size:clamp(1.5rem,3vw,2rem);max-width:36ch">{len(baru)} harga ini ada di lembar katalog, belum masuk daftar utama.</h2>
-    <p style="max-width:58ch;margin-top:0.9rem">Kalau tertarik pada salah satunya, tanya lewat WhatsApp. Kami cek stok bunga hari itu dulu, lalu kirim ukuran dan contoh foto buketnya.</p>
+    <p style="max-width:58ch;margin-top:0.9rem">Kalau tertarik pada salah satunya, tanya lewat WhatsApp. Kami cek stok bunga itu dulu, lalu kirim ukuran dan contoh foto buketnya.</p>
     <ul class="harga-baru">{''.join(chip_harga(h) for h in baru)}</ul>
   </div>
 </section>"""
+    tautan_bawah = ('<a class="tautan" href="/katalog/">Lihat daftar harga per buket</a>' if PRODUK
+                    else '<a class="tautan" href="/katalog/">Kembali ke etalase buket</a>')
     termurah = min(s["min"] for s in lembar)
     termahal = max(s["max"] for s in lembar)
     return kepala(
@@ -888,7 +1002,7 @@ def halaman_katalog_foto(lembar, tier):
   <div class="wrap">
     <p class="label" data-nomor="03">Lembar katalog</p>
     <div class="lembar-grid">{lembar_foto(lembar)}</div>
-    <p style="margin-top:1.8rem"><a class="tautan" href="/katalog/">Lihat daftar harga per buket</a></p>
+    <p style="margin-top:1.8rem">{tautan_bawah}</p>
   </div>
 </section>
 """ + kaki()
@@ -959,6 +1073,7 @@ def halaman_produk(tier, harga):
 
 
 def halaman_tentang(tier):
+    termurah, termahal = rentang_harga(tier)
     return kepala(
         "Tentang Perfect Flowers",
         "Perfect Flowers merangkai buket dari rumah di Gg. Peluru No.23, Tangerang. Setiap order dirakit setelah form order masuk.",
@@ -985,7 +1100,7 @@ def halaman_tentang(tier):
     </div>
     <div>
       <p class="label" data-nomor="03">Harga</p>
-      <h2 style="font-size:clamp(1.5rem,3vw,2rem);max-width:30ch">Harga jadi, dari {rupiah(min(tier))} sampai {rupiah(max(tier))}.</h2>
+      <h2 style="font-size:clamp(1.5rem,3vw,2rem);max-width:30ch">Harga jadi, dari {rupiah(termurah)} sampai {rupiah(termahal)}.</h2>
       <p style="max-width:60ch;margin-top:1rem">Setiap harga punya ukuran dan isian yang berbeda. Daftar lengkapnya ada di halaman katalog, lengkap dengan foto buket asli pada harga tersebut. Tidak ada biaya tersembunyi: yang tertulis adalah harga buketnya.</p>
       <p style="margin-top:1.2rem"><a class="tautan" href="/katalog/">Buka katalog</a></p>
     </div>
@@ -1066,13 +1181,39 @@ def halaman_kontak(tier):
       </div>
       <div class="kartu-info">
         <h2>Sebelum order</h2>
-        <p>Lihat dulu daftar harga dan foto buket pada tiap harga, supaya pilihan dan budget langsung cocok.</p>
+        <p>{'Lihat dulu daftar harga dan foto buket pada tiap harga, supaya pilihan dan budget langsung cocok.' if PRODUK else 'Lihat dulu etalase foto berikut harga yang tercetak di tiap buket, supaya pilihan dan budget langsung cocok.'}</p>
         <p style="margin-top:1rem"><a class="tautan" href="/katalog/">Buka katalog</a></p>
       </div>
     </div>
   </div>
 </section>
 """ + kaki()
+
+
+def halaman_alih(judul, pesan, tujuan="/katalog/"):
+    """Halaman pengalih untuk rute lama. Dipakai saat etalase ditahan supaya
+    tautan yang sudah tersebar (WA, Instagram) tidak jadi halaman mati."""
+    return f"""<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="0; url={tujuan}">
+<title>{escape(judul)}, Perfect Flowers</title>
+<meta name="description" content="{escape(pesan)}">
+<link rel="canonical" href="{tujuan}">
+<link rel="icon" href="/assets/img/logo-64.png" type="image/png">
+<link rel="stylesheet" href="/assets/css/style.css?v={versi_aset('assets/css/style.css')}">
+</head>
+<body>
+<main id="utama" class="wrap" style="padding-block:3rem">
+  <h1>{escape(judul)}</h1>
+  <p>{escape(pesan)} Lanjut ke <a href="{tujuan}">etalase buket</a>.</p>
+</main>
+</body>
+</html>
+"""
 
 
 def halaman_404():
@@ -1103,7 +1244,7 @@ def main():
 
     tier = {}
     for f in foto:
-        # potongan pricelist untuk harga di SEMBUNYI sudah dilewati di siapkan_gambar
+        # potongan pricelist untuk harga di SEMBUNYI sudah dilewati di _siapkan_produk
         tier.setdefault(f["harga"], {"foto": []})
         tier[f["harga"]]["foto"].append(f)
     for h in tier:
@@ -1114,20 +1255,35 @@ def main():
     shutil.copytree(os.path.join(ROOT, "assets", "css"), os.path.join(dist_aset, "css"))
     shutil.copytree(os.path.join(ROOT, "assets", "js"), os.path.join(dist_aset, "js"))
 
-    tulis("index.html", halaman_beranda(tier))
+    tulis("index.html", halaman_beranda(tier, lembar))
     tulis("katalog/index.html", halaman_katalog(tier, lembar))
-    tulis("katalog/foto/index.html", halaman_katalog_foto(lembar, tier))
-    for h in sorted(tier):
-        tulis("katalog/%s/index.html" % slug(h), halaman_produk(tier, h))
+    if PRODUK:
+        tulis("katalog/foto/index.html", halaman_katalog_foto(lembar, tier))
+        for h in sorted(tier):
+            tulis("katalog/%s/index.html" % slug(h), halaman_produk(tier, h))
+    else:
+        # /katalog/ sudah memuat semua lembar, jadi /katalog/foto/ kembar dan
+        # dialihkan. Halaman buket lama ditautkan dari luar (WA, Instagram),
+        # jadi rutenya juga dialihkan, bukan dibiarkan mati.
+        tulis("katalog/foto/index.html", halaman_alih(
+            "Halaman ini pindah ke katalog",
+            "Semua lembar foto sekarang ada di halaman katalog."))
+        alih_produk = halaman_alih(
+            "Halaman ini pindah ke katalog",
+            "Semua foto dan harga buket sekarang ada di satu etalase foto.")
+        for h in harga_produk():
+            tulis("katalog/%s/index.html" % slug(h), alih_produk)
     tulis("tentang/index.html", halaman_tentang(tier))
     tulis("kontak/index.html", halaman_kontak(tier))
     tulis("404.html", halaman_404())
 
     if SITE.get("url"):
         url = SITE["url"].rstrip("/")
-        halaman = ["/", "/katalog/", "/katalog/foto/", "/tentang/", "/kontak/"] + [
-            "/katalog/%s/" % slug(h) for h in sorted(tier)
-        ]
+        halaman = ["/", "/katalog/"]
+        if PRODUK:
+            halaman += ["/katalog/foto/"]
+            halaman += ["/katalog/%s/" % slug(h) for h in sorted(tier)]
+        halaman += ["/tentang/", "/kontak/"]
         isi = ['<?xml version="1.0" encoding="UTF-8"?>',
                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
         for p in halaman:
@@ -1140,7 +1296,10 @@ def main():
 
     jumlah = sum(len(v["foto"]) for v in tier.values())
     print("Selesai. %d halaman, %d produk, %d foto, %d lembar katalog." % (
-        6 + len(tier), len(tier), jumlah, len(lembar)))
+        6 + (len(tier) if PRODUK else len(harga_produk())), len(tier), jumlah, len(lembar)))
+    if not PRODUK:
+        print("Etalase: lembar katalog foto (produk_per_harga=false di data/site.json).")
+        print("          Foto per harga tetap di catalog/satuan/ dan bisa dinyalakan lagi.")
     if not (SITE.get("wa") or "").strip():
         print("PERHATIAN: nomor WhatsApp masih kosong di data/site.json.")
         print("           Tombol order sementara mengarah ke /kontak/.")
