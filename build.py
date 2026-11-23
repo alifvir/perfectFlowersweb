@@ -89,6 +89,13 @@ SITE = json.load(open(os.path.join(ROOT, "data", "site.json"), encoding="utf-8")
 # data/site.json, build ulang, semua halaman buket tayang lagi.
 PRODUK = bool(SITE.get("produk_per_harga", True))
 
+# Event musiman di beranda (mis. Hari Guru). Diatur di data/site.json bagian
+# "event"; kalau "aktif" false atau gambarnya tidak ada, beranda tampil seperti
+# biasa tanpa perlu menyentuh kode.
+EVENT = SITE.get("event") or {}
+EVENT_AKTIF = bool(EVENT.get("aktif")) and bool((EVENT.get("gambar") or "").strip())
+GAMBAR_EVENT = {}
+
 HARGA_LEMBAR = sorted({h for s in LEMBAR for h in s["harga"]})
 
 
@@ -417,6 +424,22 @@ def _siapkan_aset():
         tanda.resize((ukuran, ukuran), Image.LANCZOS).save(
             os.path.join(IMG, "logo-%d.png" % ukuran), "PNG", optimize=True)
 
+    # poster event musiman. Poster dari owner penuh teks kecil, jadi kualitasnya
+    # disamakan dengan poster ketentuan (lebar maksimal 1000, q88).
+    berkas_event = (EVENT.get("gambar") or "").strip()
+    jalur_event = os.path.join(SRC, berkas_event)
+    if EVENT_AKTIF and os.path.exists(jalur_event):
+        poster = Image.open(jalur_event).convert("RGB")
+        if poster.width > 1000:
+            poster = poster.resize(
+                (1000, round(poster.height * 1000 / poster.width)), Image.LANCZOS)
+        poster.save(os.path.join(IMG, "event.webp"), "WEBP", quality=88, method=6)
+        GAMBAR_EVENT.update({
+            "berkas": "assets/img/event.webp",
+            "w": poster.width,
+            "h": poster.height,
+        })
+
 
 def _siapkan_lembar():
     """Simpan 8 lembar kolase katalog, dipakai sebagai etalase foto."""
@@ -552,6 +575,65 @@ def tombol_wa_melayang():
         return ""
     return ('<a class="wa-melayang" href="%s" target="_blank" rel="noopener" '
             'aria-label="Chat WhatsApp Perfect Flowers">%s</a>' % (escape(tautan), IKON_WA))
+
+
+def bagian_event():
+    """Section event musiman di beranda. Kosong kalau event tidak aktif atau
+    posternya tidak ada, jadi halaman kembali normal tanpa ubah kode."""
+    if not EVENT_AKTIF or not GAMBAR_EVENT:
+        return ""
+
+    judul = escape(EVENT.get("judul") or "Event")
+    label = escape(EVENT.get("label") or "Event")
+    subjudul = escape(EVENT.get("subjudul") or "")
+    alt = escape(EVENT.get("alt") or EVENT.get("judul") or "Poster event")
+    keterangan = escape(EVENT.get("keterangan") or "")
+    catatan = escape(EVENT.get("catatan") or "")
+    satuan = escape(EVENT.get("satuan") or "")
+    akhiran = ('<span class="event__satuan">%s</span>' % satuan) if satuan else ""
+
+    paket = []
+    for p in EVENT.get("paket") or []:
+        nama = escape(str(p.get("nama") or ""))
+        harga = p.get("harga")
+        if not nama or not harga:
+            continue
+        paket.append('<li><span>%s</span><b>%s%s</b></li>' % (nama, rupiah(int(harga)), akhiran))
+    daftar = ('<ul class="event__harga">%s</ul>' % "".join(paket)) if paket else ""
+    ket = ('<p class="teks-kecil">%s</p>' % catatan) if catatan else ""
+
+    aksi = tombol_order("tombol", "Order bunga Hari Guru", EVENT.get("pesan_wa"))
+    gambar = GAMBAR_EVENT["berkas"]
+    lebar = GAMBAR_EVENT["w"]
+    tinggi = GAMBAR_EVENT["h"]
+
+    return f"""
+<section class="event" id="event">
+  <div class="wrap event__isi">
+    <p class="label" data-nomor="01">{label}</p>
+    <div class="event__teks">
+      <h2>{judul}</h2>
+      <p>{subjudul}</p>
+      {daftar}
+      {ket}
+      <div class="hero__aksi">{aksi}</div>
+    </div>
+    <figure class="event__poster">
+      <button class="bingkai-zoom" type="button" data-zoom data-foto="/{gambar}" data-alt="{alt}">
+        <img src="/{gambar}" alt="{alt}" width="{lebar}" height="{tinggi}" loading="lazy" decoding="async">
+        <span class="petunjuk-zoom">Klik untuk ukuran penuh</span>
+      </button>
+      <figcaption>{keterangan}</figcaption>
+    </figure>
+  </div>
+</section>
+"""
+
+
+def nomor_section(n):
+    """Nomor label section beranda. Saat section event tampil, semua nomor
+    setelahnya bergeser satu, jadi tidak perlu sunting manual."""
+    return "%02d" % (n + (1 if GAMBAR_EVENT else 0))
 
 
 def kepala(judul, deskripsi, aktif, kanonikal=""):
@@ -755,14 +837,14 @@ def halaman_beranda(tier, lembar):
     </ul>
   </div>
 </div>
-
+{bagian_event()}
 <section>
   <div class="wrap">
     <div class="judul-bagian">
       <h2>{judul_pilihan}</h2>
       <p>{ket_pilihan}</p>
     </div>
-    <p class="label" data-nomor="01">Pilihan buket</p>
+    <p class="label" data-nomor="{nomor_section(1)}">Pilihan buket</p>
     <div class="{'produk-grid' if PRODUK else 'lembar-grid'}">{pilihan}</div>
     <p style="margin-top:1.6rem">{aksi_pilihan}</p>
   </div>
@@ -771,7 +853,7 @@ def halaman_beranda(tier, lembar):
 <section class="alur" id="cara-order">
   <span class="sprig sprig--alur" aria-hidden="true">{IKON_DAUN}</span>
   <div class="wrap">
-    <p class="label" data-nomor="02">Cara order</p>
+    <p class="label" data-nomor="{nomor_section(2)}">Cara order</p>
     <h2>Tiga langkah, tanpa aplikasi baru.</h2>
     <ol class="alur__daftar">
       <li>
@@ -802,7 +884,7 @@ def halaman_beranda(tier, lembar):
 <section class="bayar">
   <div class="wrap bayar__isi">
     <div>
-      <p class="label" data-nomor="03">Pembayaran</p>
+      <p class="label" data-nomor="{nomor_section(3)}">Pembayaran</p>
       <h2>DP lewat transfer BCA atau QRIS</h2>
       <p>DP minimal {SITE["dp_persen"]}% dari harga buket. Sisanya dibayar saat pengambilan, tunai atau transfer di tempat.</p>
       <div class="rekening">
@@ -824,7 +906,7 @@ def halaman_beranda(tier, lembar):
 <section class="ketentuan" id="ketentuan">
   <span class="sprig sprig--ketentuan" aria-hidden="true">{IKON_DAUN}</span>
   <div class="wrap">
-    <p class="label" data-nomor="04">Ketentuan</p>
+    <p class="label" data-nomor="{nomor_section(4)}">Ketentuan</p>
     <div class="tnc">
       <div>
         <h2>Ketentuan pemesanan, dibaca sebelum order.</h2>
@@ -850,7 +932,7 @@ def halaman_beranda(tier, lembar):
 
 <section class="lokasi">
   <div class="wrap lokasi__isi">
-    <p class="label" data-nomor="05">Lokasi</p>
+    <p class="label" data-nomor="{nomor_section(5)}">Lokasi</p>
     <figure class="lokasi__foto">
       <img src="/assets/img/lokasi.webp" alt="Patokan lokasi pengambilan buket Perfect Flowers di Gg. Peluru No.23 Tangerang, panah hijau menunjuk ke rumah" width="900" height="903" loading="lazy" decoding="async">
       <figcaption>Tampak depan gang. Panah hijau menunjuk ke rumah pengambilan.</figcaption>

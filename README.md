@@ -45,6 +45,18 @@ Mode produk (`"produk_per_harga": true`):
 
 Saat mode etalase, tiap lembar punya tombol WhatsApp dengan pesan `... katalog foto lembar N (harga X sampai Y). Boleh info ketersediaan bunga hari ini? Budget saya: Rp ` — bagian budget sengaja kosong karena satu lembar memuat banyak harga dan customer yang menentukan.
 
+## Event musiman di beranda
+
+`data/site.json` → `"event"`. Dipakai untuk promo terbatas seperti Hari Guru:
+
+- `"aktif": true` menampilkan satu section di beranda, tepat di bawah strip fakta dan di atas pilihan buket.
+- `"gambar"` menunjuk poster dari owner di `assets-src/` (diolah build jadi `assets/img/event.webp`, lebar maksimal 1000, q88, bisa diklik untuk lightbox).
+- `"judul"`, `"subjudul"`, `"catatan"`, dan `"paket"` (`nama` + `harga` angka) mengisi teks section.
+- `"pesan_wa"` mengisi pesan WhatsApp tombol order khusus event.
+- Nomor urut label section beranda ikut bergeser otomatis (event 01, pilihan buket 02, sampai lokasi 06).
+
+Set `"aktif": false` setelah event selesai: section hilang, beranda kembali normal, nomor label kembali 01 sampai 05.
+
 ## Potong foto produk
 
 `build.py` memotong tiap sel pricelist jadi foto produk 4:5 dengan aturan seragam:

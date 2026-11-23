@@ -6,6 +6,22 @@
   "produk_per_harga": false,
   "wa": "6285157226960",
   "wa_pesan": "Halo Perfect Flowers, saya mau pesan buket. Boleh info ketersediaan bunga hari ini?",
+  "event": {
+    "aktif": true,
+    "label": "Event Hari Guru",
+    "judul": "Selamat Hari Guru",
+    "subjudul": "Terima kasih untuk semua ilmu, kesabaran, dan ketulusannya. Rayakan Hari Guru dengan bunga penuh makna.",
+    "gambar": "event-hari-guru.jpeg",
+    "alt": "Poster Hari Guru Perfect Flowers: Mawar Merah Rp13 ribu per tangkai dan Mawar Putih dan Pink Rp10 ribu per tangkai",
+    "keterangan": "Poster event Hari Guru dari Perfect Flowers",
+    "satuan": "per tangkai",
+    "catatan": "Harga per tangkai. Bisa grosir untuk pembelian banyak, harga lebih murah lagi. Ketersediaan dikonfirmasi lewat WhatsApp.",
+    "paket": [
+      {"nama": "Mawar Merah", "harga": 13000},
+      {"nama": "Mawar Putih & Pink", "harga": 10000}
+    ],
+    "pesan_wa": "Halo Perfect Flowers, saya mau order bunga untuk Hari Guru. Mawar Merah Rp13 ribu dan Mawar Putih dan Pink Rp10 ribu per tangkai. Boleh info ketersediaan? Kalau ambil banyak, ada harga grosir?"
+  },
   "alamat": "Gg. Peluru No.23, Tangerang",
   "petunjuk": "Rumah warna hijau, belakang bengkel AC.",
   "maps": "https://maps.app.goo.gl/8gLfHzTX5yLB5Zse9",

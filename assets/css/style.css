@@ -436,6 +436,86 @@ section { padding-block: clamp(2.6rem, 7vw, 4.6rem); }
   .fakta li + li { border-left: 1px solid var(--line); padding-left: 2rem; }
 }
 
+/* ---------- event musiman (mis. Hari Guru) ---------- */
+
+.event {
+  background: var(--wash-blush);
+  border-block: 1px solid var(--line);
+}
+
+.event__isi {
+  display: grid;
+  gap: 1.4rem;
+  align-items: center;
+}
+.event__isi > .label { grid-column: 1 / -1; margin-bottom: 0; }
+@media (min-width: 900px) {
+  .event__isi { grid-template-columns: 1fr 0.68fr; gap: 2.6rem; }
+}
+
+.event__teks h2 {
+  font-size: clamp(1.9rem, 4vw, 2.8rem);
+  max-width: 20ch;
+  margin-bottom: 0.8rem;
+}
+.event__teks > p {
+  color: var(--muted);
+  max-width: 38ch;
+}
+
+.event__harga {
+  list-style: none;
+  padding: 0;
+  margin: 1.3rem 0 0.9rem;
+  max-width: 26rem;
+}
+.event__harga li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px dashed var(--rose-soft);
+}
+.event__harga li:first-child { border-top: 1px dashed var(--rose-soft); }
+.event__harga b {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: var(--serif);
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--rose);
+  white-space: nowrap;
+}
+.event__satuan {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+.event__poster {
+  margin: 0;
+  width: 100%;
+  max-width: 420px;
+  justify-self: center;
+}
+.event__poster img {
+  width: 100%;
+  height: auto;
+  border-radius: var(--r);
+  border: 1px solid var(--rose-soft);
+  background: var(--card);
+}
+.event__poster figcaption {
+  margin-top: 0.55rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
 /* ---------- judul section ---------- */
 
 .judul-bagian {
