@@ -441,17 +441,14 @@ def _siapkan_aset():
             "h": poster.height,
         })
 
-    # foto mini bucket event. Sumbernya foto meja kerja (banyak buket bertumpuk
-    # dengan bar hitam di atas-bawah), jadi dipotong ke satu buket di kiri bawah
-    # lalu dijadikan 4:5 supaya kartunya rapi dan tidak memakan tinggi section.
+    # foto mini bucket event: foto detail dari owner, dipotong 4:5 supaya
+    # kartunya ringkas dan seragam dengan foto produk lain.
     mini = EVENT.get("mini") or {}
     berkas_mini = (mini.get("gambar") or "").strip()
     jalur_mini = os.path.join(SRC, berkas_mini)
     if EVENT_AKTIF and os.path.exists(jalur_mini):
         im_mini = Image.open(jalur_mini).convert("RGB")
-        W, H = im_mini.size
-        im_mini = im_mini.crop((0, int(H * 0.52), int(W * 0.55), int(H * 0.84)))
-        im_mini = ImageOps.fit(im_mini, (480, 600), Image.LANCZOS)
+        im_mini = ImageOps.fit(im_mini, (480, 600), Image.LANCZOS, centering=(0.5, 0.42))
         im_mini.save(os.path.join(IMG, "event-mini.webp"), "WEBP", quality=82, method=6)
         GAMBAR_MINI.update({"berkas": "assets/img/event-mini.webp", "w": 480, "h": 600})
 
