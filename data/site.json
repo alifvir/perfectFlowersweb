@@ -20,7 +20,15 @@
       {"nama": "Mawar Merah", "harga": 13000},
       {"nama": "Mawar Putih & Pink", "harga": 10000}
     ],
-    "pesan_wa": "Halo Perfect Flowers, saya mau order bunga untuk Hari Guru. Mawar Merah Rp13 ribu dan Mawar Putih dan Pink Rp10 ribu per tangkai. Boleh info ketersediaan? Kalau ambil banyak, ada harga grosir?"
+    "mini": {
+      "nama": "Mini bucket Hari Guru",
+      "harga": 20000,
+      "satuan": "per bucket",
+      "gambar": "event-mini-bucket.jpeg",
+      "alt": "Mini bucket Hari Guru isi bunga campur warna cerah dengan pita biru",
+      "keterangan": "Buket mini isi bunga campur."
+    },
+    "pesan_wa": "Halo Perfect Flowers, saya mau order bunga untuk Hari Guru. Saya lihat Mawar Merah Rp13 ribu dan Mawar Putih dan Pink Rp10 ribu per tangkai, juga mini bucket Rp20 ribu. Boleh info ketersediaan? Kalau ambil banyak, ada harga grosir?"
   },
   "alamat": "Gg. Peluru No.23, Tangerang",
   "petunjuk": "Rumah warna hijau, belakang bengkel AC.",

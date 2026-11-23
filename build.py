@@ -95,6 +95,7 @@ PRODUK = bool(SITE.get("produk_per_harga", True))
 EVENT = SITE.get("event") or {}
 EVENT_AKTIF = bool(EVENT.get("aktif")) and bool((EVENT.get("gambar") or "").strip())
 GAMBAR_EVENT = {}
+GAMBAR_MINI = {}
 
 HARGA_LEMBAR = sorted({h for s in LEMBAR for h in s["harga"]})
 
@@ -440,6 +441,20 @@ def _siapkan_aset():
             "h": poster.height,
         })
 
+    # foto mini bucket event. Sumbernya foto meja kerja (banyak buket bertumpuk
+    # dengan bar hitam di atas-bawah), jadi dipotong ke satu buket di kiri bawah
+    # lalu dijadikan 4:5 supaya kartunya rapi dan tidak memakan tinggi section.
+    mini = EVENT.get("mini") or {}
+    berkas_mini = (mini.get("gambar") or "").strip()
+    jalur_mini = os.path.join(SRC, berkas_mini)
+    if EVENT_AKTIF and os.path.exists(jalur_mini):
+        im_mini = Image.open(jalur_mini).convert("RGB")
+        W, H = im_mini.size
+        im_mini = im_mini.crop((0, int(H * 0.52), int(W * 0.55), int(H * 0.84)))
+        im_mini = ImageOps.fit(im_mini, (480, 600), Image.LANCZOS)
+        im_mini.save(os.path.join(IMG, "event-mini.webp"), "WEBP", quality=82, method=6)
+        GAMBAR_MINI.update({"berkas": "assets/img/event-mini.webp", "w": 480, "h": 600})
+
 
 def _siapkan_lembar():
     """Simpan 8 lembar kolase katalog, dipakai sebagai etalase foto."""
@@ -603,6 +618,26 @@ def bagian_event():
     ket = ('<p class="teks-kecil">%s</p>' % catatan) if catatan else ""
 
     aksi = tombol_order("tombol", "Order bunga Hari Guru", EVENT.get("pesan_wa"))
+
+    mini = EVENT.get("mini") or {}
+    kartu_mini = ""
+    if GAMBAR_MINI and mini.get("harga"):
+        nama_mini = escape(str(mini.get("nama") or "Mini bucket"))
+        alt_mini = escape(str(mini.get("alt") or nama_mini))
+        ket_mini = escape(str(mini.get("keterangan") or ""))
+        satuan_mini = escape(str(mini.get("satuan") or ""))
+        satuan_mini = ('<span class="event__satuan">%s</span>' % satuan_mini) if satuan_mini else ""
+        kartu_mini = (
+            '<figure class="event__mini">'
+            '<button class="bingkai-zoom" type="button" data-zoom data-foto="/%s" data-alt="%s">'
+            '<img src="/%s" alt="%s" width="%d" height="%d" loading="lazy" decoding="async">'
+            '</button>'
+            '<figcaption><strong>%s</strong><b>%s%s</b><span>%s</span></figcaption>'
+            '</figure>'
+        ) % (GAMBAR_MINI["berkas"], alt_mini, GAMBAR_MINI["berkas"], alt_mini,
+             GAMBAR_MINI["w"], GAMBAR_MINI["h"], nama_mini,
+             rupiah(int(mini["harga"])), satuan_mini, ket_mini)
+
     gambar = GAMBAR_EVENT["berkas"]
     lebar = GAMBAR_EVENT["w"]
     tinggi = GAMBAR_EVENT["h"]
@@ -616,6 +651,7 @@ def bagian_event():
       <p>{subjudul}</p>
       {daftar}
       {ket}
+      {kartu_mini}
       <div class="hero__aksi">{aksi}</div>
     </div>
     <figure class="event__poster">

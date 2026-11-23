@@ -52,6 +52,7 @@ Saat mode etalase, tiap lembar punya tombol WhatsApp dengan pesan `... katalog f
 - `"aktif": true` menampilkan satu section di beranda, tepat di bawah strip fakta dan di atas pilihan buket.
 - `"gambar"` menunjuk poster dari owner di `assets-src/` (diolah build jadi `assets/img/event.webp`, lebar maksimal 1000, q88, bisa diklik untuk lightbox).
 - `"judul"`, `"subjudul"`, `"catatan"`, dan `"paket"` (`nama` + `harga` angka) mengisi teks section.
+- `"mini"` (opsional) menambah kartu paket kecil: `nama`, `harga`, `satuan`, `gambar`, `alt`, `keterangan`. Fotonya dipotong 4:5 di `build.py` supaya kartunya ringkas.
 - `"pesan_wa"` mengisi pesan WhatsApp tombol order khusus event.
 - Nomor urut label section beranda ikut bergeser otomatis (event 01, pilihan buket 02, sampai lokasi 06).
 
